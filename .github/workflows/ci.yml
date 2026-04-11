@@ -1,0 +1,140 @@
+name: CI — Test & Quality Check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1: Quality checks (runs on every push)
+  # ─────────────────────────────────────────────
+  quality:
+    name: Type check + Lint + Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript — type check
+        run: npm run type-check
+        # Add to package.json: "type-check": "tsc --noEmit"
+
+      - name: ESLint — code quality
+        run: npm run lint
+        # Add to package.json: "lint": "next lint"
+
+      - name: Tests
+        run: npm test --if-present
+        # Runs tests only if a test script exists
+        # We add tests ticket-by-ticket as we build
+
+      - name: Build check
+        run: npm run build
+        env:
+          # Dummy values for build — real values set in Vercel
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+
+  # ─────────────────────────────────────────────
+  # JOB 2: Jira status update on success
+  # ─────────────────────────────────────────────
+  update-jira-success:
+    name: Mark Jira ticket In Review
+    needs: quality
+    runs-on: ubuntu-latest
+    if: success() && github.ref != 'refs/heads/main'
+
+    steps:
+      - name: Extract Jira ticket from branch name
+        id: extract
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE 'KAN-[0-9]+' | head -1)
+          echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+          echo "Found ticket: $TICKET"
+
+      - name: Comment on Jira ticket
+        if: steps.extract.outputs.ticket != ''
+        run: |
+          curl -X POST \
+            "https://siddhantdave93.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.ticket }}/comment" \
+            -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN_B64 }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "body": {
+                "type": "doc",
+                "version": 1,
+                "content": [{
+                  "type": "paragraph",
+                  "content": [{
+                    "type": "text",
+                    "text": "✅ CI passed — TypeScript, ESLint, tests, and build all green. Preview deployment triggered on Vercel.",
+                    "marks": [{"type": "strong"}]
+                  }]
+                }]
+              }
+            }'
+
+  # ─────────────────────────────────────────────
+  # JOB 3: Jira status update on failure
+  # ─────────────────────────────────────────────
+  update-jira-failure:
+    name: Flag Jira ticket as CI failed
+    needs: quality
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+      - name: Extract Jira ticket from branch name
+        id: extract
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE 'KAN-[0-9]+' | head -1)
+          echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+
+      - name: Comment failure on Jira ticket
+        if: steps.extract.outputs.ticket != ''
+        run: |
+          curl -X POST \
+            "https://siddhantdave93.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.ticket }}/comment" \
+            -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN_B64 }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "body": {
+                "type": "doc",
+                "version": 1,
+                "content": [{
+                  "type": "paragraph",
+                  "content": [{
+                    "type": "text",
+                    "text": "❌ CI FAILED — Check GitHub Actions for details before merging. Fix required.",
+                    "marks": [{"type": "strong"}]
+                  }]
+                }]
+              }
+            }'
+
+      - name: Send Telegram alert to Sid
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          curl -s -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.SID_TELEGRAM_ID }}" \
+            -d "text=❌ CI failed on branch: $BRANCH%0ACheck: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -d "parse_mode=HTML"
