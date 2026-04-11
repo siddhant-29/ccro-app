@@ -1,0 +1,142 @@
+name: Deploy — Production & Preview
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1: Deploy PREVIEW on every PR push
+  # (Vercel handles this automatically via GitHub
+  #  integration — this job just adds the URL to Jira)
+  # ─────────────────────────────────────────────
+  preview-url-to-jira:
+    name: Post preview URL to Jira
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+
+    steps:
+      - name: Wait for Vercel preview
+        run: sleep 30
+        # Vercel preview deploys in ~20-30s
+
+      - name: Extract Jira ticket from PR title
+        id: extract
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          TICKET=$(echo "$TITLE" | grep -oE 'KAN-[0-9]+' | head -1)
+          echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+          PREVIEW_URL="https://ccro-app-git-${{ github.head_ref }}-siddhantdave93.vercel.app"
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+
+      - name: Post preview URL to Jira ticket
+        if: steps.extract.outputs.ticket != ''
+        run: |
+          curl -X POST \
+            "https://siddhantdave93.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.ticket }}/comment" \
+            -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN_B64 }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "body": {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "🔗 Preview deployed: ", "marks": [{"type": "strong"}]},
+                      {
+                        "type": "inlineCard",
+                        "attrs": {"url": "${{ steps.extract.outputs.preview_url }}"}
+                      }
+                    ]
+                  },
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {"type": "text", "text": "Check acceptance criteria against this URL before merging."}
+                    ]
+                  }
+                ]
+              }
+            }'
+
+  # ─────────────────────────────────────────────
+  # JOB 2: Deploy PRODUCTION on merge to main
+  # (Vercel auto-deploys — this job updates Jira)
+  # ─────────────────────────────────────────────
+  production-deploy-notification:
+    name: Mark Jira ticket Done after production deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Extract Jira ticket from commit message
+        id: extract
+        run: |
+          COMMIT="${{ github.event.head_commit.message }}"
+          TICKET=$(echo "$COMMIT" | grep -oE 'KAN-[0-9]+' | head -1)
+          echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+          echo "Deploying for ticket: $TICKET"
+
+      - name: Transition Jira ticket to Done
+        if: steps.extract.outputs.ticket != ''
+        run: |
+          # Get available transitions
+          TRANSITIONS=$(curl -s \
+            "https://siddhantdave93.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.ticket }}/transitions" \
+            -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN_B64 }}")
+
+          # Find the "Done" transition ID
+          DONE_ID=$(echo $TRANSITIONS | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for t in data.get('transitions', []):
+              if t['name'].lower() in ['done', 'complete', 'closed']:
+                  print(t['id'])
+                  break
+          ")
+
+          if [ -n "$DONE_ID" ]; then
+            curl -X POST \
+              "https://siddhantdave93.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.ticket }}/transitions" \
+              -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN_B64 }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"transition\": {\"id\": \"$DONE_ID\"}}"
+            echo "Ticket transitioned to Done"
+          fi
+
+      - name: Add production deploy comment to Jira
+        if: steps.extract.outputs.ticket != ''
+        run: |
+          curl -X POST \
+            "https://siddhantdave93.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.ticket }}/comment" \
+            -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN_B64 }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "body": {
+                "type": "doc",
+                "version": 1,
+                "content": [{
+                  "type": "paragraph",
+                  "content": [
+                    {"type": "text", "text": "🚀 Deployed to production. ", "marks": [{"type": "strong"}]},
+                    {"type": "text", "text": "Commit: ${{ github.event.head_commit.message }}"}
+                  ]
+                }]
+              }
+            }'
+
+      - name: Notify Sid on Telegram — production deploy
+        if: steps.extract.outputs.ticket != ''
+        run: |
+          TICKET="${{ steps.extract.outputs.ticket }}"
+          MSG="${{ github.event.head_commit.message }}"
+          curl -s -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.SID_TELEGRAM_ID }}" \
+            -d "text=🚀 Production deploy complete!%0ATicket: $TICKET%0A$MSG%0Ahttps://ccro-app.vercel.app" \
+            -d "parse_mode=HTML"
