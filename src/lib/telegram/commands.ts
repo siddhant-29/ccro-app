@@ -46,14 +46,21 @@ export async function handleHelp(chatId: number): Promise<void> {
  */
 
 const CARD_SLUG_MAP: Record<string, string> = {
-  magnus: 'magnus',
-  'hdfc magnus': 'magnus',
-  infinia: 'infinia',
-  'hdfc infinia': 'infinia',
-  'amex platinum': 'amex_platinum',
-  platinum: 'amex_platinum',
+  magnus: 'axis_magnus',
+  'hdfc magnus': 'axis_magnus',
+  'axis magnus': 'axis_magnus',
+  infinia: 'hdfc_infinia',
+  'hdfc infinia': 'hdfc_infinia',
+  diners: 'hdfc_diners_black',
+  'diners black': 'hdfc_diners_black',
+  dcb: 'hdfc_diners_black',
+  'amex platinum': 'amex_platinum_travel',
+  platinum: 'amex_platinum_travel',
+  amex: 'amex_platinum_travel',
   'amex gold': 'amex_gold',
   gold: 'amex_gold',
+  emeralde: 'icici_emeralde',
+  'icici emeralde': 'icici_emeralde',
   'axis reserve': 'axis_reserve',
   reserve: 'axis_reserve',
   'sbi elite': 'sbi_elite',
@@ -129,14 +136,14 @@ export async function handleCards(
   // Upsert all cards for this user
   const rows = cards.map((c) => ({
     telegram_user_id: telegramUserId,
-    card_slug: c.slug,
-    points_balance: c.balance,
-    updated_at: new Date().toISOString(),
+    card_id: c.slug,
+    current_points_balance: c.balance,
+    balance_last_updated: new Date().toISOString(),
   }));
 
   const { error } = await supabase
-    .from('user_cards')
-    .upsert(rows, { onConflict: 'telegram_user_id,card_slug' });
+    .from('telegram_portfolios')
+    .upsert(rows, { onConflict: 'telegram_user_id,card_id' });
 
   if (error) {
     console.error('[handleCards] Supabase upsert error:', error);
@@ -145,7 +152,7 @@ export async function handleCards(
   }
 
   const summary = cards
-    .map((c) => `${c.slug.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())}: ${c.balance.toLocaleString()} pts`)
+    .map((c) => `${c.slug.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}: ${c.balance.toLocaleString()} pts`)
     .join(' · ');
 
   await sendMessage(chatId, `Got it! ${summary}. Now ask me anything!`);

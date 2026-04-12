@@ -34,6 +34,32 @@ function getClient(): Anthropic {
   return _client;
 }
 
+const CARD_ID_NORMALISER: Record<string, string> = {
+  'magnus':               'axis_magnus',
+  'axis_magnus':          'axis_magnus',
+  'axis magnus':          'axis_magnus',
+  'infinia':              'hdfc_infinia',
+  'hdfc_infinia':         'hdfc_infinia',
+  'hdfc infinia':         'hdfc_infinia',
+  'diners':               'hdfc_diners_black',
+  'diners black':         'hdfc_diners_black',
+  'dcb':                  'hdfc_diners_black',
+  'hdfc_diners_black':    'hdfc_diners_black',
+  'amex':                 'amex_platinum_travel',
+  'amex platinum':        'amex_platinum_travel',
+  'amex_platinum':        'amex_platinum_travel',
+  'amex_platinum_travel': 'amex_platinum_travel',
+  'emeralde':             'icici_emeralde',
+  'icici emeralde':       'icici_emeralde',
+  'icici_emeralde':       'icici_emeralde',
+}
+
+function normaliseCardIds(ids: string[]): string[] {
+  return Array.from(new Set(
+    ids.map(id => CARD_ID_NORMALISER[id.toLowerCase()] ?? id)
+  ))
+}
+
 const CLASSIFIER_SYSTEM = `You are an intent classifier for a credit card rewards chatbot.
 
 Respond ONLY with a single valid JSON object — no markdown, no explanation, no extra text.
@@ -98,7 +124,9 @@ export async function classifyIntent(userMessage: string): Promise<ClassifiedInt
 
     return {
       intent,
-      cards_mentioned: Array.isArray(parsed.cards_mentioned) ? parsed.cards_mentioned : [],
+      cards_mentioned: normaliseCardIds(
+        Array.isArray(parsed.cards_mentioned) ? parsed.cards_mentioned : []
+      ),
       amount_mentioned:
         typeof parsed.amount_mentioned === 'number' ? parsed.amount_mentioned : null,
       destination_mentioned:

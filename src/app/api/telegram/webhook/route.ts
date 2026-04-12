@@ -83,30 +83,30 @@ export async function POST(req: NextRequest) {
 
     // 2. Load user's stored card balances
     const { data: userCardsData } = await supabaseAdmin
-      .from('user_cards')
-      .select('*')
+      .from('telegram_portfolios')
+      .select('card_id, current_points_balance, balance_last_updated')
       .eq('telegram_user_id', userId)
 
     const userCards = (userCardsData ?? []) as Array<{
-      card_slug: string
-      points_balance: number
-      updated_at: string
+      card_id: string
+      current_points_balance: number
+      balance_last_updated: string
     }>
 
     const userPortfolio = userCards.map(c => ({
-      card_id: c.card_slug,
-      card_name: CARD_NAMES[c.card_slug] ??
-        c.card_slug.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-      current_points_balance: c.points_balance,
-      balance_last_updated: c.updated_at,
+      card_id: c.card_id,
+      card_name: CARD_NAMES[c.card_id] ??
+        c.card_id.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+      current_points_balance: c.current_points_balance,
+      balance_last_updated: c.balance_last_updated,
     }))
 
     // Build explicit card ownership summary so Claude always knows which cards the user holds
     const userCardSummary = userCards.length > 0
       ? userCards
           .map(c => {
-            const name = CARD_NAMES[c.card_slug] ?? c.card_slug
-            return `• ${name}: ${c.points_balance.toLocaleString()} pts`
+            const name = CARD_NAMES[c.card_id] ?? c.card_id
+            return `• ${name}: ${c.current_points_balance.toLocaleString()} pts`
           })
           .join('\n')
       : ''
