@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════
+   CCRO Global Styles
+   ═══════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    --brand-50:  #fdf8f0;
+    --brand-100: #faeeda;
+    --brand-500: #d4820a;
+    --brand-600: #b36c07;
+    --brand-900: #412402;
+  }
+
+  /* Smooth font rendering */
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Prevent iOS text size adjustment */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Better focus ring — accessible but not ugly */
+  *:focus-visible {
+    outline: 2px solid #d4820a;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Remove default button styles */
+  button {
+    cursor: pointer;
+  }
+
+  /* Mobile: prevent keyboard from covering input */
+  /* This pairs with the layout.tsx maximumScale: 1 */
+  input, textarea, select {
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+}
+
+@layer components {
+  /* Chat message markdown rendering */
+  .prose-chat {
+    @apply text-sm leading-relaxed;
+  }
+  .prose-chat strong {
+    @apply font-semibold;
+  }
+  .prose-chat ul {
+    @apply list-disc pl-4 space-y-1 my-2;
+  }
+  .prose-chat ol {
+    @apply list-decimal pl-4 space-y-1 my-2;
+  }
+  .prose-chat code {
+    @apply bg-gray-100 rounded px-1 text-xs font-mono;
+  }
+  .prose-chat p {
+    @apply mb-2 last:mb-0;
+  }
+
+  /* Skeleton loading animation */
+  .skeleton {
+    @apply animate-pulse bg-gray-100 rounded;
+  }
+
+  /* Bottom safe area for iPhone notch */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+}
