@@ -5,15 +5,23 @@
  * generation into a single call for use from route handlers.
  */
 
+import Anthropic from '@anthropic-ai/sdk'
 import { classifyIntent } from './ai/intent-classifier'
 import { buildContext } from './db/context-builder'
 import { generateResponse, splitForTelegram } from './ai/claude'
+import { CC_ADVISOR_SYSTEM_PROMPT } from './ai/system-prompt'
 import { supabaseAdmin } from './supabase'
 import type { UserCard } from './types'
 
 // Re-export so callers can import the prompt without reaching into ai/
-export { CC_ADVISOR_SYSTEM_PROMPT } from './ai/system-prompt'
+export { CC_ADVISOR_SYSTEM_PROMPT }
 export { splitForTelegram }
+
+let _client: Anthropic | null = null
+function getClient(): Anthropic {
+  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  return _client
+}
 
 export interface AdvisorResponse {
   chunks: string[]
@@ -32,6 +40,42 @@ function toPortfolioEntry(c: UserCard) {
     current_points_balance: c.points_balance,
     balance_last_updated: c.updated_at,
   }
+}
+
+/**
+ * Call Claude with pre-formatted context and an optional card ownership header.
+ * Use this when you've already built the verified_data block and just need
+ * to inject it + the user's portfolio summary into the prompt.
+ */
+export async function askAdvisor(
+  userMessage: string,
+  verifiedContext: string,
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+  userCardSummary: string = ''
+): Promise<string> {
+  const cardHeader = userCardSummary ? `USER'S CARDS:\n${userCardSummary}\n\n` : ''
+  const userTurn = `${cardHeader}${verifiedContext}${userMessage}`
+
+  const response = await getClient().beta.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1500,
+    betas: ['prompt-caching-2024-07-31'],
+    system: [
+      {
+        type: 'text',
+        text: CC_ADVISOR_SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
+    messages: [
+      ...conversationHistory,
+      { role: 'user', content: userTurn },
+    ],
+  })
+
+  return response.content[0]?.type === 'text'
+    ? response.content[0].text.trim()
+    : "Sorry, I couldn't generate a response. Please try again."
 }
 
 /**
