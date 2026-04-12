@@ -60,6 +60,16 @@ export async function buildContext(
   classified: ClassifiedIntent,
   userCards: UserCard[]
 ): Promise<BuiltContext> {
+  // If DB is unavailable, return minimal context so Claude can
+  // still answer from training data with a disclaimer
+  if (!supabase) {
+    return {
+      contextBlock:
+        '⚠️ Live card data unavailable right now. This answer is based on general knowledge — verify rates with your bank before acting.\n\n',
+      dbAvailable: false,
+    }
+  }
+
   const slugs = classified.cards_mentioned;
 
   // Attempt DB fetch; if anything throws we fall back gracefully (EC-005).

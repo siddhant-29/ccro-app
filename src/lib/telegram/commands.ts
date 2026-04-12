@@ -126,6 +126,11 @@ export async function handleCards(
     return;
   }
 
+  if (!supabase) {
+    await sendMessage(chatId, 'Database temporarily unavailable. Please try again in a moment.');
+    return;
+  }
+
   // Upsert all cards for this user
   const rows = cards.map((c) => ({
     telegram_user_id: telegramUserId,

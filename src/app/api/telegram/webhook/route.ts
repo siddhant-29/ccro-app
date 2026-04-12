@@ -75,6 +75,10 @@ export async function POST(req: NextRequest) {
     const classified = await classifyIntent(text);
 
     // 3. Load user's stored card balances
+    if (!supabase) {
+      await sendMessage(chatId, 'Database temporarily unavailable. Please try again in a moment.');
+      return NextResponse.json({ ok: true });
+    }
     const { data: userCardsData } = await supabase
       .from('user_cards')
       .select('*')
