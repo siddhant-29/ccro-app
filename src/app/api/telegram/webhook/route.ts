@@ -73,12 +73,9 @@ export async function POST(req: NextRequest) {
 
     // 2. Classify intent
     const classified = await classifyIntent(text);
+    console.log('[webhook] intent:', classified.intent, 'cards:', classified.cards_mentioned);
 
     // 3. Load user's stored card balances
-    if (!supabase) {
-      await sendMessage(chatId, 'Database temporarily unavailable. Please try again in a moment.');
-      return NextResponse.json({ ok: true });
-    }
     const { data: userCardsData } = await supabase
       .from('user_cards')
       .select('*')
@@ -86,7 +83,8 @@ export async function POST(req: NextRequest) {
     const userCards = (userCardsData ?? []) as UserCard[];
 
     // 4. Build RAG context from Supabase rewards DB
-    const { contextBlock } = await buildContext(classified, userCards);
+    const { contextBlock, dbAvailable } = await buildContext(classified, userCards);
+    console.log('[webhook] context built — dbAvailable:', dbAvailable, 'contextBlock length:', contextBlock.length);
 
     // 5. Generate Claude response
     const chunks = await generateResponse(text, classified, contextBlock, userCards);

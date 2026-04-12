@@ -9,20 +9,35 @@ export function createBrowserClient() {
 // Route handler client — reads session from cookies
 export { createRouteHandlerClient }
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
-
-if (!supabaseUrl) console.warn('Missing SUPABASE_URL — DB features disabled')
-if (!supabaseServiceKey) console.warn('Missing SUPABASE_SERVICE_KEY — DB features disabled')
-
 // Admin client — server-side only, bypasses RLS.
-// null when env vars are absent (build time / misconfigured deploy).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const supabaseAdmin: SupabaseClient = supabaseUrl && supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
-  : null as any
+//
+// Uses a Proxy so the env-var check and createClient call are deferred to
+// first use (request time), not module load time. This keeps `next build`
+// working in environments without SUPABASE_* vars (CI, preview), while
+// still throwing a loud, named error the moment a real request hits a
+// misconfigured deploy — visible in Vercel/server logs.
+let _adminClient: SupabaseClient | null = null
+
+function getAdminClient(): SupabaseClient {
+  if (_adminClient) return _adminClient
+
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_KEY
+
+  if (!url) throw new Error('Missing SUPABASE_URL')
+  if (!key) throw new Error('Missing SUPABASE_SERVICE_KEY')
+
+  _adminClient = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  return _adminClient
+}
+
+export const supabaseAdmin: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    return getAdminClient()[prop as keyof SupabaseClient]
+  },
+})
 
 // Convenience alias used by telegram bot routes
 export const supabase = supabaseAdmin
