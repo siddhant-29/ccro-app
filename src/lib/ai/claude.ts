@@ -83,9 +83,10 @@ export async function generateResponse(
       ? `[Intent detected: ${classified.intent}]\n\n`
       : '';
 
-  const response = await client.beta.promptCaching.messages.create({
+  const response = await client.beta.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1500,
+    betas: ['prompt-caching-2024-07-31'],
     system: [
       {
         type: 'text',

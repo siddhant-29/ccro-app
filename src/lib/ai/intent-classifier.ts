@@ -70,9 +70,10 @@ export async function classifyIntent(userMessage: string): Promise<ClassifiedInt
 
   try {
     // Use prompt caching on the stable classifier system prompt.
-    const response = await client.beta.promptCaching.messages.create({
+    const response = await client.beta.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 256,
+      betas: ['prompt-caching-2024-07-31'],
       system: [
         {
           type: 'text',
