@@ -25,6 +25,7 @@ export interface EarnRate {
   rate: number;
   unit: string; // e.g. "pts per ₹100" or "miles per ₹100"
   notes: string | null;
+  verified: boolean;
 }
 
 export interface TransferPartner {
@@ -36,6 +37,7 @@ export interface TransferPartner {
   ratio_to: number;
   min_transfer: number | null;
   notes: string | null;
+  verified: boolean;
 }
 
 export interface UserCard {

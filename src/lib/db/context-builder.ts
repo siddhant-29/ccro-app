@@ -31,7 +31,7 @@ function formatEarnRates(rows: EarnRate[]): string {
     (r) =>
       `  • ${r.card_slug.toUpperCase()} — ${r.category}: ${r.rate} ${r.unit}${r.notes ? ` (${r.notes})` : ''}`
   );
-  return `EARN RATES (verified):\n${lines.join('\n')}`;
+  return `EARN RATES:\n${lines.join('\n')}`;
 }
 
 function formatTransferPartners(rows: TransferPartner[]): string {
@@ -43,7 +43,7 @@ function formatTransferPartners(rows: TransferPartner[]): string {
       (r.min_transfer ? ` | min transfer: ${r.min_transfer}` : '') +
       (r.notes ? ` | ${r.notes}` : '')
   );
-  return `TRANSFER PARTNERS (verified):\n${lines.join('\n')}`;
+  return `TRANSFER PARTNERS:\n${lines.join('\n')}`;
 }
 
 function formatUserCards(cards: UserCard[]): string {
@@ -76,12 +76,17 @@ export async function buildContext(
   try {
     const [earnRatesResult, transferPartnersResult] = await Promise.all([
       slugs.length > 0
-        ? supabase.from('earn_rates').select('*').in('card_slug', slugs)
+        ? supabase
+            .from('earn_rates')
+            .select('*')
+            .in('card_slug', slugs)
+            .order('verified', { ascending: false })
         : Promise.resolve({ data: [], error: null }),
       supabase
         .from('transfer_partners')
         .select('*')
-        .in('card_slug', slugs.length > 0 ? slugs : ['__none__']),
+        .in('card_slug', slugs.length > 0 ? slugs : ['__none__'])
+        .order('verified', { ascending: false }),
     ]);
 
     if (earnRatesResult.error || transferPartnersResult.error) {
@@ -90,6 +95,14 @@ export async function buildContext(
 
     const earnRates = (earnRatesResult.data ?? []) as EarnRate[];
     const transferPartners = (transferPartnersResult.data ?? []) as TransferPartner[];
+
+    // Flag if any rows are pending verification
+    const hasUnverified =
+      earnRates.some((r) => !r.verified) ||
+      transferPartners.some((r) => !r.verified);
+    const unverifiedNote = hasUnverified
+      ? '\nNOTE: Some data points are pending verification against official bank sources.'
+      : '';
 
     // EC-015: note cards that were mentioned but not found in the DB
     const foundCardSlugs = new Set([
@@ -106,6 +119,7 @@ export async function buildContext(
       formatUserCards(userCards),
       formatEarnRates(earnRates),
       formatTransferPartners(transferPartners),
+      unverifiedNote,
       missingNote,
     ]
       .filter(Boolean)
@@ -113,7 +127,7 @@ export async function buildContext(
 
     const contextBlock =
       sections.length > 0
-        ? `--- VERIFIED DATA FROM REWARDS DATABASE ---\n${sections}\n--- END VERIFIED DATA ---\n\n`
+        ? `--- DATA FROM REWARDS DATABASE ---\n${sections}\n--- END DATA ---\n\n`
         : '';
 
     return { contextBlock, dbAvailable: true };
