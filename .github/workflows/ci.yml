@@ -10,131 +10,121 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  # ─────────────────────────────────────────────
-  # JOB 1: Quality checks (runs on every push)
-  # ─────────────────────────────────────────────
+  # ─────────────────────────────────────────
+  # JOB 1: Quality — skips if no project yet
+  # ─────────────────────────────────────────
   quality:
     name: Type check + Lint + Test
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
+      - name: Check if Next.js project exists
+        id: check
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_project=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_project=false" >> $GITHUB_OUTPUT
+            echo "No package.json yet — skipping code checks (pre-Sprint 0)"
+          fi
+
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        if: steps.check.outputs.has_project == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
+        if: steps.check.outputs.has_project == 'true'
         run: npm ci
 
-      - name: TypeScript — type check
+      - name: TypeScript check
+        if: steps.check.outputs.has_project == 'true'
         run: npm run type-check
-        # Add to package.json: "type-check": "tsc --noEmit"
 
-      - name: ESLint — code quality
+      - name: ESLint
+        if: steps.check.outputs.has_project == 'true'
         run: npm run lint
-        # Add to package.json: "lint": "next lint"
 
       - name: Tests
+        if: steps.check.outputs.has_project == 'true'
         run: npm test --if-present
-        # Runs tests only if a test script exists
-        # We add tests ticket-by-ticket as we build
 
-      - name: Build check
+      - name: Build
+        if: steps.check.outputs.has_project == 'true'
         run: npm run build
         env:
-          # Dummy values for build — real values set in Vercel
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
-  # ─────────────────────────────────────────────
-  # JOB 2: Jira status update on success
-  # ─────────────────────────────────────────────
-  update-jira-success:
-    name: Mark Jira ticket In Review
+  # ─────────────────────────────────────────
+  # JOB 2: Jira comment on success
+  # ─────────────────────────────────────────
+  notify-jira-success:
+    name: Comment on Jira ticket
     needs: quality
     runs-on: ubuntu-latest
-    if: success() && github.ref != 'refs/heads/main'
-
+    if: success()
     steps:
-      - name: Extract Jira ticket from branch name
+      - name: Extract ticket ID
         id: extract
         run: |
-          BRANCH="${{ github.head_ref || github.ref_name }}"
-          TICKET=$(echo "$BRANCH" | grep -oE 'KAN-[0-9]+' | head -1)
+          TICKET=$(echo "${{ github.event.head_commit.message }}" | grep -oE 'KAN-[0-9]+' | head -1)
+          if [ -z "$TICKET" ]; then
+            TICKET=$(echo "${{ github.head_ref || github.ref_name }}" | grep -oE 'KAN-[0-9]+' | head -1)
+          fi
           echo "ticket=$TICKET" >> $GITHUB_OUTPUT
-          echo "Found ticket: $TICKET"
 
-      - name: Comment on Jira ticket
+      - name: Post success comment to Jira
         if: steps.extract.outputs.ticket != ''
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN_B64 }}
         run: |
-          curl -X POST \
+          SHA="${{ github.sha }}"
+          RUN="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST \
             "https://siddhantdave93.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.ticket }}/comment" \
-            -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN_B64 }}" \
+            -H "Authorization: Basic $JIRA_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{
-              "body": {
-                "type": "doc",
-                "version": 1,
-                "content": [{
-                  "type": "paragraph",
-                  "content": [{
-                    "type": "text",
-                    "text": "✅ CI passed — TypeScript, ESLint, tests, and build all green. Preview deployment triggered on Vercel.",
-                    "marks": [{"type": "strong"}]
-                  }]
-                }]
-              }
-            }'
+            -d "{\"body\":{\"type\":\"doc\",\"version\":1,\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"✅ CI passed — ${SHA:0:7}: ${{ github.event.head_commit.message }} | $RUN\"}]}]}}"
 
-  # ─────────────────────────────────────────────
-  # JOB 3: Jira status update on failure
-  # ─────────────────────────────────────────────
-  update-jira-failure:
-    name: Flag Jira ticket as CI failed
+  # ─────────────────────────────────────────
+  # JOB 3: Jira + Telegram on failure
+  # ─────────────────────────────────────────
+  notify-jira-failure:
+    name: Flag failure in Jira + Telegram
     needs: quality
     runs-on: ubuntu-latest
     if: failure()
-
     steps:
-      - name: Extract Jira ticket from branch name
+      - name: Extract ticket ID
         id: extract
         run: |
-          BRANCH="${{ github.head_ref || github.ref_name }}"
-          TICKET=$(echo "$BRANCH" | grep -oE 'KAN-[0-9]+' | head -1)
+          TICKET=$(echo "${{ github.event.head_commit.message }}" | grep -oE 'KAN-[0-9]+' | head -1)
+          if [ -z "$TICKET" ]; then
+            TICKET=$(echo "${{ github.head_ref || github.ref_name }}" | grep -oE 'KAN-[0-9]+' | head -1)
+          fi
           echo "ticket=$TICKET" >> $GITHUB_OUTPUT
 
-      - name: Comment failure on Jira ticket
+      - name: Post failure comment to Jira
         if: steps.extract.outputs.ticket != ''
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN_B64 }}
         run: |
-          curl -X POST \
+          RUN="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST \
             "https://siddhantdave93.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.ticket }}/comment" \
-            -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN_B64 }}" \
+            -H "Authorization: Basic $JIRA_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{
-              "body": {
-                "type": "doc",
-                "version": 1,
-                "content": [{
-                  "type": "paragraph",
-                  "content": [{
-                    "type": "text",
-                    "text": "❌ CI FAILED — Check GitHub Actions for details before merging. Fix required.",
-                    "marks": [{"type": "strong"}]
-                  }]
-                }]
-              }
-            }'
+            -d "{\"body\":{\"type\":\"doc\",\"version\":1,\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"❌ CI FAILED — fix before merging: $RUN\",\"marks\":[{\"type\":\"strong\"}]}]}]}}"
 
-      - name: Send Telegram alert to Sid
+      - name: Telegram alert
         run: |
-          BRANCH="${{ github.ref_name }}"
+          RUN="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           curl -s -X POST \
             "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d "chat_id=${{ secrets.SID_TELEGRAM_ID }}" \
-            -d "text=❌ CI failed on branch: $BRANCH%0ACheck: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            -d "parse_mode=HTML"
+            -d "text=❌ CI failed on ${{ github.ref_name }}%0A$RUN"
