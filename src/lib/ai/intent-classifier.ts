@@ -34,6 +34,7 @@ function getClient(): Anthropic {
   return _client;
 }
 
+/** Canonical card_id for every user-facing alias (post-processing step). */
 const CARD_ID_NORMALISER: Record<string, string> = {
   'magnus':               'axis_magnus',
   'axis_magnus':          'axis_magnus',
@@ -43,16 +44,40 @@ const CARD_ID_NORMALISER: Record<string, string> = {
   'hdfc infinia':         'hdfc_infinia',
   'diners':               'hdfc_diners_black',
   'diners black':         'hdfc_diners_black',
+  'diners club black':    'hdfc_diners_black',
+  'diners club':          'hdfc_diners_black',
   'dcb':                  'hdfc_diners_black',
   'hdfc_diners_black':    'hdfc_diners_black',
   'amex':                 'amex_platinum_travel',
   'amex platinum':        'amex_platinum_travel',
+  'amex pt':              'amex_platinum_travel',
+  'platinum travel':      'amex_platinum_travel',
+  'platinum':             'amex_platinum_travel',
   'amex_platinum':        'amex_platinum_travel',
   'amex_platinum_travel': 'amex_platinum_travel',
   'emeralde':             'icici_emeralde',
+  'emerald':              'icici_emeralde',
+  'emerald private':      'icici_emeralde',
   'icici emeralde':       'icici_emeralde',
   'icici_emeralde':       'icici_emeralde',
 }
+
+/** Known card aliases → canonical card_id (used for pre-classification matching). */
+const KNOWN_CARDS: Record<string, string> = {
+  'diners club black':    'hdfc_diners_black',
+  'diners club':          'hdfc_diners_black',
+  'dcb':                  'hdfc_diners_black',
+  'platinum travel':      'amex_platinum_travel',
+  'amex pt':              'amex_platinum_travel',
+  'platinum':             'amex_platinum_travel',
+  'emeralde':             'icici_emeralde',
+  'emerald':              'icici_emeralde',
+  'emerald private':      'icici_emeralde',
+  'icici emeralde':       'icici_emeralde',
+}
+
+// Suppress unused-variable warning until KNOWN_CARDS is wired into pre-classification
+void (KNOWN_CARDS as unknown)
 
 function normaliseCardIds(ids: string[]): string[] {
   return Array.from(new Set(
