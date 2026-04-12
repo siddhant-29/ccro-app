@@ -76,8 +76,18 @@ const KNOWN_CARDS: Record<string, string> = {
   'icici emeralde':       'icici_emeralde',
 }
 
-// Suppress unused-variable warning until KNOWN_CARDS is wired into pre-classification
-void (KNOWN_CARDS as unknown)
+function extractCardsLocally(text: string): string[] {
+  const lower = text.toLowerCase()
+  const found = new Set<string>()
+
+  for (const [keyword, cardId] of Object.entries(KNOWN_CARDS)) {
+    if (lower.includes(keyword)) {
+      found.add(cardId)
+    }
+  }
+
+  return Array.from(found)
+}
 
 function normaliseCardIds(ids: string[]): string[] {
   return Array.from(new Set(
@@ -147,18 +157,17 @@ export async function classifyIntent(userMessage: string): Promise<ClassifiedInt
       ? (parsed.intent as Intent)
       : 'general_education';
 
+    const claudeCards = Array.isArray(parsed.cards_mentioned) ? parsed.cards_mentioned : []
     return {
       intent,
-      cards_mentioned: normaliseCardIds(
-        Array.isArray(parsed.cards_mentioned) ? parsed.cards_mentioned : []
-      ),
+      cards_mentioned: normaliseCardIds([...claudeCards, ...extractCardsLocally(userMessage)]),
       amount_mentioned:
         typeof parsed.amount_mentioned === 'number' ? parsed.amount_mentioned : null,
       destination_mentioned:
         typeof parsed.destination_mentioned === 'string' ? parsed.destination_mentioned : null,
     };
   } catch {
-    // EC-014: malformed JSON or API error — fall back gracefully
-    return { ...FALLBACK };
+    // EC-014: malformed JSON or API error — fall back to local extraction
+    return { ...FALLBACK, cards_mentioned: normaliseCardIds(extractCardsLocally(userMessage)) };
   }
 }
