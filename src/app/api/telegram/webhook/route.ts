@@ -48,13 +48,22 @@ async function loadConversationHistory(
   telegramUserId: string
 ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
   if (!supabaseAdmin) return []
-  const { data } = await supabaseAdmin
-    .from('telegram_conversations')
-    .select('role, content')
-    .eq('telegram_user_id', telegramUserId)
-    .order('created_at', { ascending: true })
-    .limit(20)
-  return (data ?? []) as Array<{ role: 'user' | 'assistant'; content: string }>
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('telegram_conversations')
+      .select('role, content')
+      .eq('telegram_user_id', telegramUserId)
+      .order('created_at', { ascending: true })
+      .limit(20)
+    if (error) {
+      console.error('[webhook] conversation load error:', error)
+      return []
+    }
+    return (data ?? []) as Array<{ role: 'user' | 'assistant'; content: string }>
+  } catch (err) {
+    console.error('[webhook] conversation load exception:', err)
+    return []
+  }
 }
 
 async function saveConversationTurn(
@@ -63,24 +72,33 @@ async function saveConversationTurn(
   assistantReply: string
 ): Promise<void> {
   if (!supabaseAdmin) return
-  await supabaseAdmin.from('telegram_conversations').insert([
-    { telegram_user_id: telegramUserId, role: 'user', content: userMessage },
-    { telegram_user_id: telegramUserId, role: 'assistant', content: assistantReply },
-  ])
+  try {
+    await supabaseAdmin.from('telegram_conversations').insert([
+      { telegram_user_id: telegramUserId, role: 'user', content: userMessage },
+      { telegram_user_id: telegramUserId, role: 'assistant', content: assistantReply },
+    ])
+  } catch (err) {
+    console.error('[webhook] conversation save error:', err)
+  }
 }
 
 // ── Active card tracking ───────────────────────────────────────────────────
 
 async function getActiveCard(telegramUserId: string): Promise<string | null> {
   if (!supabaseAdmin) return null
-  const { data } = await supabaseAdmin
-    .from('telegram_portfolios')
-    .select('active_card_id')
-    .eq('telegram_user_id', telegramUserId)
-    .not('active_card_id', 'is', null)
-    .limit(1)
-    .single()
-  return data?.active_card_id ?? null
+  try {
+    const { data } = await supabaseAdmin
+      .from('telegram_portfolios')
+      .select('active_card_id')
+      .eq('telegram_user_id', telegramUserId)
+      .not('active_card_id', 'is', null)
+      .limit(1)
+      .maybeSingle()
+    return data?.active_card_id ?? null
+  } catch (err) {
+    console.error('[webhook] active card load error:', err)
+    return null
+  }
 }
 
 async function setActiveCard(
@@ -88,11 +106,14 @@ async function setActiveCard(
   cardId: string
 ): Promise<void> {
   if (!supabaseAdmin) return
-  await supabaseAdmin
-    .from('telegram_portfolios')
-    .update({ active_card_id: cardId })
-    .eq('telegram_user_id', telegramUserId)
-    .eq('card_id', cardId)
+  try {
+    await supabaseAdmin
+      .from('telegram_portfolios')
+      .update({ active_card_id: cardId })
+      .eq('telegram_user_id', telegramUserId)
+  } catch (err) {
+    console.error('[webhook] active card save error:', err)
+  }
 }
 
 // ── Route handlers ─────────────────────────────────────────────────────────
@@ -142,13 +163,14 @@ export async function POST(req: NextRequest) {
 
     // 2. Load persistent conversation history
     const history = await loadConversationHistory(userId)
+    console.log('[webhook] conversation history turns:', history.length)
 
     // 3. Active card fallback — if no card mentioned, use the last focused card
     if (classified.cards_mentioned.length === 0) {
       const activeCard = await getActiveCard(userId)
       if (activeCard) {
         classified.cards_mentioned = [activeCard]
-        console.log('[webhook] using active card:', activeCard)
+        console.log('[webhook] injected active card:', activeCard)
       }
     }
 
