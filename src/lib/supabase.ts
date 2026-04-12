@@ -9,31 +9,20 @@ export function createBrowserClient() {
 // Route handler client — reads session from cookies
 export { createRouteHandlerClient }
 
-// Admin client — lazily initialised so module import never throws at build time.
-// Server-side only: bypasses RLS.
-let _adminClient: SupabaseClient | null = null
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
 
-export function getSupabaseAdmin(): SupabaseClient {
-  if (_adminClient) return _adminClient
+if (!supabaseUrl) console.warn('Missing SUPABASE_URL — DB features disabled')
+if (!supabaseServiceKey) console.warn('Missing SUPABASE_SERVICE_KEY — DB features disabled')
 
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_KEY
-
-  if (!url) throw new Error('Missing SUPABASE_URL environment variable')
-  if (!key) throw new Error('Missing SUPABASE_SERVICE_KEY environment variable')
-
-  _adminClient = createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-  return _adminClient
-}
-
-// Named export used by subscription-config.ts and other server code
-export const supabaseAdmin = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    return getSupabaseAdmin()[prop as keyof SupabaseClient]
-  },
-})
+// Admin client — server-side only, bypasses RLS.
+// null when env vars are absent (build time / misconfigured deploy).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const supabaseAdmin: SupabaseClient = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+  : null as any
 
 // Convenience alias used by telegram bot routes
 export const supabase = supabaseAdmin
