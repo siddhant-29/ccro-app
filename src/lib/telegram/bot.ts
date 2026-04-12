@@ -49,8 +49,23 @@ export async function sendTyping(chatId: number): Promise<void> {
 
 /**
  * Register the webhook URL with Telegram.
- * Call this once from /api/telegram/setup or during deployment.
+ * Returns true on success, false on failure.
  */
+export async function registerWebhook(webhookUrl: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: webhookUrl }),
+    });
+    const json = await res.json() as { ok: boolean };
+    return json.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+/** @deprecated Use registerWebhook instead */
 export async function setWebhook(webhookUrl: string): Promise<void> {
-  await tgCall('setWebhook', { url: webhookUrl });
+  await registerWebhook(webhookUrl);
 }
