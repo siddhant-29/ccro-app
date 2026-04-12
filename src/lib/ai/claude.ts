@@ -1,87 +1,116 @@
 /**
  * KAN-30 — Main Claude response generator.
  *
- * Takes the user's raw message, the classified intent, the RAG context block
- * from the context builder, and the user's stored card balances, then returns
- * a complete answer string.
- *
- * Prompt caching is applied to the stable system prompt (cache_control: ephemeral).
- * Responses > 4 096 chars are split into chunks at the nearest paragraph break.
+ * Accepts a structured RewardsContext, formats it into a <verified_data>
+ * block, and sends to Claude with the CC advisor system prompt.
+ * Prompt caching applied to the stable system prompt.
+ * Responses > 4096 chars are split at paragraph boundaries.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-import { SYSTEM_PROMPT } from './system-prompt';
-import type { ClassifiedIntent, UserCard } from '../types';
+import Anthropic from '@anthropic-ai/sdk'
+import { CC_ADVISOR_SYSTEM_PROMPT } from './system-prompt'
+import type { ClassifiedIntent } from '../types'
+import type { RewardsContext, EarnRate, TransferPartner } from '@/types'
 
-// Telegram's hard message length limit
-const TG_LIMIT = 4096;
+const TG_LIMIT = 4096
 
-let _client: Anthropic | null = null;
+let _client: Anthropic | null = null
 function getClient(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _client;
+  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  return _client
 }
 
 /**
- * Split a long string into chunks that respect the Telegram 4 096-char limit.
+ * Split a long string into chunks that respect the Telegram 4096-char limit.
  * Splits at paragraph boundaries (double newline) where possible.
  */
 export function splitForTelegram(text: string): string[] {
-  if (text.length <= TG_LIMIT) return [text];
+  if (text.length <= TG_LIMIT) return [text]
 
-  const chunks: string[] = [];
-  let remaining = text;
+  const chunks: string[] = []
+  let remaining = text
 
   while (remaining.length > TG_LIMIT) {
-    // Try to split at the last paragraph break before the limit
-    const slice = remaining.slice(0, TG_LIMIT);
-    const lastParagraph = slice.lastIndexOf('\n\n');
-    const cutAt = lastParagraph > 0 ? lastParagraph + 2 : TG_LIMIT;
-
-    chunks.push(remaining.slice(0, cutAt).trimEnd());
-    remaining = remaining.slice(cutAt).trimStart();
+    const slice = remaining.slice(0, TG_LIMIT)
+    const lastParagraph = slice.lastIndexOf('\n\n')
+    const cutAt = lastParagraph > 0 ? lastParagraph + 2 : TG_LIMIT
+    chunks.push(remaining.slice(0, cutAt).trimEnd())
+    remaining = remaining.slice(cutAt).trimStart()
   }
 
-  if (remaining.length > 0) chunks.push(remaining);
-  return chunks;
+  if (remaining.length > 0) chunks.push(remaining)
+  return chunks
 }
 
-/** Assembles the full user-turn content, prepending context + card balances. */
-function buildUserTurn(
-  userMessage: string,
-  contextBlock: string,
-  userCards: UserCard[]
-): string {
-  const parts: string[] = [];
+/** Format a RewardsContext into a <verified_data> XML block for the prompt. */
+export function formatRewardsContext(context: RewardsContext): string {
+  const parts: string[] = []
 
-  if (contextBlock) parts.push(contextBlock);
-
-  if (userCards.length > 0) {
-    const balances = userCards
-      .map((c) => `${c.card_slug.toUpperCase()}: ${c.points_balance.toLocaleString()} pts`)
-      .join(', ');
-    parts.push(`My card balances: ${balances}`);
+  if (context.user_portfolio.length > 0) {
+    const balances = context.user_portfolio
+      .map(c =>
+        `  ${c.card_name} (${c.card_id}): ${c.current_points_balance.toLocaleString()} pts` +
+        ` [updated ${c.balance_last_updated.split('T')[0]}]`
+      )
+      .join('\n')
+    parts.push(`USER PORTFOLIO:\n${balances}`)
   }
 
-  parts.push(userMessage);
-  return parts.join('\n\n');
+  if (context.earn_rates && context.earn_rates.length > 0) {
+    const rates = context.earn_rates
+      .map((r: EarnRate) =>
+        `  ${r.card_id.toUpperCase()} | ${r.category}: ${r.points_per_200} pts per ₹200` +
+        (r.effective_reward_pct ? ` (${r.effective_reward_pct}% reward)` : '') +
+        (r.monthly_cap_points ? ` | monthly cap: ${r.monthly_cap_points}` : '') +
+        (r.excluded ? ' [EXCLUDED]' : '') +
+        (r.notes ? ` | ${r.notes}` : '')
+      )
+      .join('\n')
+    parts.push(`EARN RATES:\n${rates}`)
+  }
+
+  if (context.transfer_partners && context.transfer_partners.length > 0) {
+    const partners = context.transfer_partners
+      .map((p: TransferPartner) =>
+        `  ${p.card_id.toUpperCase()} → ${p.partner_name} [${p.partner_type}]` +
+        `: ${p.transfer_ratio_from} pts = ${p.transfer_ratio_to} pts` +
+        (p.transfer_cap_annual ? ` | annual cap: ${p.transfer_cap_annual}` : '') +
+        (p.partner_tier ? ` | ${p.partner_tier}` : '') +
+        (p.processing_days ? ` | ${p.processing_days}d processing` : '')
+      )
+      .join('\n')
+    parts.push(`TRANSFER PARTNERS:\n${partners}`)
+  }
+
+  if (context.missing_cards && context.missing_cards.length > 0) {
+    parts.push(
+      `NO DATA FOR: ${context.missing_cards.join(', ')} — answer from training data only for these cards.`
+    )
+  }
+
+  if (context.tier_note) {
+    parts.push(`NOTE: ${context.tier_note}`)
+  }
+
+  if (parts.length === 0) return ''
+
+  return `<verified_data>\n${parts.join('\n\n')}\n</verified_data>\n\n`
 }
 
 export async function generateResponse(
   userMessage: string,
   classified: ClassifiedIntent,
-  contextBlock: string,
-  userCards: UserCard[]
+  context: RewardsContext
 ): Promise<string[]> {
-  const client = getClient();
+  const client = getClient()
 
-  const userTurn = buildUserTurn(userMessage, contextBlock, userCards);
-
-  // Add intent hint as a brief internal note so Claude can weight its answer correctly
+  const verifiedBlock = formatRewardsContext(context)
   const intentHint =
     classified.intent !== 'general_education'
-      ? `[Intent detected: ${classified.intent}]\n\n`
-      : '';
+      ? `[Intent: ${classified.intent}]\n\n`
+      : ''
+
+  const userTurn = [verifiedBlock, intentHint, userMessage].filter(Boolean).join('')
 
   const response = await client.beta.messages.create({
     model: 'claude-sonnet-4-6',
@@ -90,22 +119,17 @@ export async function generateResponse(
     system: [
       {
         type: 'text',
-        text: SYSTEM_PROMPT,
+        text: CC_ADVISOR_SYSTEM_PROMPT,
         cache_control: { type: 'ephemeral' },
       },
     ],
-    messages: [
-      {
-        role: 'user',
-        content: intentHint + userTurn,
-      },
-    ],
-  });
+    messages: [{ role: 'user', content: userTurn }],
+  })
 
   const text =
     response.content[0]?.type === 'text'
       ? response.content[0].text.trim()
-      : "Sorry, I couldn't generate a response. Please try again.";
+      : "Sorry, I couldn't generate a response. Please try again."
 
-  return splitForTelegram(text);
+  return splitForTelegram(text)
 }

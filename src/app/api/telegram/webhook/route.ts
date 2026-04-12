@@ -1,106 +1,109 @@
 /**
  * KAN-29 — Telegram webhook handler: POST /api/telegram/webhook
- * KAN-33 — Full redemption-path pipeline wired end-to-end:
+ * KAN-33 — Full redemption-path pipeline:
  *
  *   incoming message
  *     → command router (/start, /help, /cards)
- *     → send typing indicator
  *     → classifyIntent()
- *     → fetch user cards from Supabase
+ *     → load user portfolio from Supabase
  *     → buildContext()   ← RAG from rewards DB (KAN-32)
- *     → generateResponse() ← Claude API (KAN-30)
- *     → split if > 4 096 chars (KAN-30)
- *     → sendChunks()
+ *     → generateResponse() ← Claude API with verified_data block (KAN-30)
+ *     → split if > 4096 chars → sendChunks()
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import type { TelegramUpdate } from '@/lib/types';
-import { sendTyping, sendChunks, sendMessage } from '@/lib/telegram/bot';
-import { handleStart, handleHelp, handleCards } from '@/lib/telegram/commands';
-import { classifyIntent } from '@/lib/ai/intent-classifier';
-import { buildContext } from '@/lib/db/context-builder';
-import { generateResponse } from '@/lib/ai/claude';
-import { supabase } from '@/lib/db/supabase';
-import type { UserCard } from '@/lib/types';
+import { NextRequest, NextResponse } from 'next/server'
+import type { TelegramUpdate } from '@/lib/types'
+import { sendTyping, sendChunks, sendMessage } from '@/lib/telegram/bot'
+import { handleStart, handleHelp, handleCards } from '@/lib/telegram/commands'
+import { classifyIntent } from '@/lib/ai/intent-classifier'
+import { buildContext } from '@/lib/db/context-builder'
+import { generateResponse } from '@/lib/ai/claude'
+import { supabase } from '@/lib/db/supabase'
+import type { UserCard } from '@/lib/types'
 
-// Telegram sends POST updates; GET is used for health checks.
 export async function GET() {
-  return NextResponse.json({ ok: true, service: 'ccro-telegram-webhook' });
+  return NextResponse.json({ ok: true, service: 'ccro-telegram-webhook' })
 }
 
 export async function POST(req: NextRequest) {
-  // Parse update
-  let update: TelegramUpdate;
+  let update: TelegramUpdate
   try {
-    update = (await req.json()) as TelegramUpdate;
+    update = (await req.json()) as TelegramUpdate
   } catch {
-    return NextResponse.json({ ok: false, error: 'invalid JSON' }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid JSON' }, { status: 400 })
   }
 
-  const message = update.message;
+  const message = update.message
+  if (!message?.text) return NextResponse.json({ ok: true })
 
-  // Ignore updates without a message or text (e.g. stickers, joins)
-  if (!message?.text) {
-    return NextResponse.json({ ok: true });
-  }
-
-  const chatId = message.chat.id;
-  const userId = String(message.from.id);
-  const text = message.text.trim();
+  const chatId = message.chat.id
+  const userId = String(message.from.id)
+  const text = message.text.trim()
 
   try {
-    // ── Command routing ──────────────────────────────────────────────────
+    // ── Command routing ────────────────────────────────────────────────────
 
     if (text.startsWith('/start')) {
-      await handleStart(chatId);
-      return NextResponse.json({ ok: true });
+      await handleStart(chatId)
+      return NextResponse.json({ ok: true })
     }
-
     if (text.startsWith('/help')) {
-      await handleHelp(chatId);
-      return NextResponse.json({ ok: true });
+      await handleHelp(chatId)
+      return NextResponse.json({ ok: true })
     }
-
     if (text.startsWith('/cards')) {
-      await handleCards(chatId, userId, text);
-      return NextResponse.json({ ok: true });
+      await handleCards(chatId, userId, text)
+      return NextResponse.json({ ok: true })
     }
 
-    // ── Full AI pipeline ─────────────────────────────────────────────────
+    // ── Full AI pipeline ───────────────────────────────────────────────────
 
-    // 1. Show typing indicator immediately (fire-and-forget is fine here)
-    void sendTyping(chatId);
+    void sendTyping(chatId)
 
-    // 2. Classify intent
-    const classified = await classifyIntent(text);
-    console.log('[webhook] intent:', classified.intent, 'cards:', classified.cards_mentioned);
+    // 1. Classify intent
+    const classified = await classifyIntent(text)
+    console.log('[webhook] intent:', classified.intent, 'cards:', classified.cards_mentioned)
 
-    // 3. Load user's stored card balances
+    // 2. Load user's stored card balances and map to portfolio shape
     const { data: userCardsData } = await supabase
       .from('user_cards')
       .select('*')
-      .eq('telegram_user_id', userId);
-    const userCards = (userCardsData ?? []) as UserCard[];
+      .eq('telegram_user_id', userId)
 
-    // 4. Build RAG context from Supabase rewards DB
-    const { contextBlock, dbAvailable } = await buildContext(classified, userCards);
-    console.log('[webhook] context built — dbAvailable:', dbAvailable, 'contextBlock length:', contextBlock.length);
+    const userCards = (userCardsData ?? []) as UserCard[]
+    const userPortfolio = userCards.map(c => ({
+      card_id: c.card_slug,
+      card_name: c.card_slug
+        .split('_')
+        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' '),
+      current_points_balance: c.points_balance,
+      balance_last_updated: c.updated_at,
+    }))
 
-    // 5. Generate Claude response
-    const chunks = await generateResponse(text, classified, contextBlock, userCards);
+    // 3. Build RAG context from Supabase rewards DB
+    const context = await buildContext(classified, userPortfolio)
+    console.log(
+      '[webhook] context built — earn_rates:',
+      context.earn_rates?.length ?? 0,
+      'partners:',
+      context.transfer_partners?.length ?? 0,
+      'missing:',
+      context.missing_cards ?? []
+    )
 
-    // 6. Send response (split across messages if needed)
-    await sendChunks(chatId, chunks);
+    // 4. Generate Claude response (context formatted as <verified_data> block)
+    const chunks = await generateResponse(text, classified, context)
+
+    // 5. Send (split at 4096 chars if needed)
+    await sendChunks(chatId, chunks)
   } catch (err) {
-    console.error('[webhook] unhandled error:', err);
-    // Best-effort error message to the user — never let the webhook return a 500
-    // because Telegram would retry indefinitely.
+    console.error('[webhook] unhandled error:', err)
     await sendMessage(
       chatId,
-      "Sorry, something went wrong on my end. Please try again in a moment."
-    ).catch(() => {});
+      'Sorry, something went wrong on my end. Please try again in a moment.'
+    ).catch(() => {})
   }
 
-  // Always return 200 to Telegram to acknowledge the update.
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true })
 }
