@@ -6,7 +6,7 @@ import { createRouteHandlerClient, supabaseAdmin } from '@/lib/supabase'
 import { classifyIntent } from '@/lib/ai/intent-classifier'
 import { buildContext } from '@/lib/context-builder'
 import { formatRewardsContext } from '@/lib/ai/claude'
-import { checkSubscriptionLimit, INTENT_FEATURE_MAP } from '@/lib/subscription-config'
+import { checkSubscriptionLimit, INTENT_FEATURE_MAP, SUBSCRIPTION_CONFIG } from '@/lib/subscription-config'
 import { CC_ADVISOR_SYSTEM_PROMPT } from '@/lib/ai/system-prompt'
 
 let _anthropic: Anthropic | null = null
@@ -35,6 +35,13 @@ function sanitise(input: string): string {
     .replace(/<\/?(?:system|instructions?)[^>]*>/gi, '')
     .trim()
     .slice(0, 2000)
+}
+
+const GATE_MESSAGES: Record<string, string> = {
+  card_comparison:          'I can answer detailed questions about any one of your registered cards. Which card would you like to explore?',
+  category_optimizer:       'I can answer spend questions for your registered cards. Which of your cards are you asking about?',
+  multi_card_orchestration: 'I can look at one card at a time on the free plan. Which card would you like to focus on?',
+  portfolio_optimiser:      'I can review one card at a time on the free plan. Which card are you considering?',
 }
 
 function gateStream(message: string): Response {
@@ -69,6 +76,9 @@ export async function POST(req: Request) {
     )
   }
 
+  const isFreeForAll = SUBSCRIPTION_CONFIG.FREE_FOR_ALL
+  console.log('[api/chat] FREE_FOR_ALL:', isFreeForAll, 'env:', process.env.FREE_FOR_ALL)
+
   // 2. Parse + validate
   let raw: string
   try {
@@ -93,16 +103,7 @@ export async function POST(req: Request) {
   // 4. Classify intent
   const classified = await classifyIntent(sanitised)
 
-  // 5. Feature gate
-  const featureKey = INTENT_FEATURE_MAP[classified.intent]
-  if (featureKey) {
-    const gateCheck = await checkSubscriptionLimit(user.id, featureKey)
-    if (!gateCheck.allowed) {
-      return gateStream(gateCheck.reason ?? 'This feature requires a Pro subscription.')
-    }
-  }
-
-  // 6. Load user cards
+  // 5. Load user cards (needed before gate check to test card ownership)
   const { data: rawCards } = await supabaseAdmin
     .from('user_cards')
     .select('card_id, current_points_balance, balance_last_updated, card_rewards(card_name)')
@@ -118,6 +119,30 @@ export async function POST(req: Request) {
     current_points_balance: c.current_points_balance,
     balance_last_updated: c.balance_last_updated,
   }))
+
+  // 6. Feature gate — only applies when FREE_FOR_ALL is off,
+  //    and only when the user is asking about cards they don't own.
+  if (!isFreeForAll) {
+    const requiredFeature = INTENT_FEATURE_MAP[classified.intent]
+    if (requiredFeature) {
+      const mentionedCards = classified.cards_mentioned
+      const userCardIds = userPortfolio.map(c => c.card_id)
+      const allMentionedAreOwned =
+        mentionedCards.length === 0 ||
+        mentionedCards.every(id => userCardIds.includes(id))
+
+      if (!allMentionedAreOwned) {
+        const featureCheck = await checkSubscriptionLimit(user.id, requiredFeature)
+        if (!featureCheck.allowed) {
+          const gateMsg =
+            GATE_MESSAGES[classified.intent] ??
+            featureCheck.reason ??
+            'This feature requires a Pro subscription.'
+          return gateStream(gateMsg)
+        }
+      }
+    }
+  }
 
   // 7. Build context
   const rewardsContext = await buildContext(classified, userPortfolio)
