@@ -6,10 +6,11 @@ import { usePathname } from 'next/navigation'
 const TABS = [
   {
     href: '/app/chat',
-    label: 'Chat',
+    label: 'Home',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1z" />
+        <path d="M9 21V12h6v9" />
       </svg>
     ),
   },
@@ -45,7 +46,11 @@ const TABS = [
   },
 ]
 
-export function BottomNav() {
+interface BottomNavProps {
+  onHomeTap?: () => void
+}
+
+export function BottomNav({ onHomeTap }: BottomNavProps = {}) {
   const pathname = usePathname()
 
   return (
@@ -55,26 +60,30 @@ export function BottomNav() {
     >
       {TABS.map(tab => {
         const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
+        const cls = 'flex-1 flex flex-col items-center justify-center gap-0.5'
+        const iconEl = (
+          <div className={`p-1.5 rounded-lg transition-colors ${active ? 'bg-amber-100 text-amber-600' : 'text-stone-400'}`}>
+            {tab.icon}
+          </div>
+        )
+        const labelEl = (
+          <span className={`text-[10px] font-medium leading-none ${active ? 'text-amber-600' : 'text-stone-400'}`}>
+            {tab.label}
+          </span>
+        )
+
+        // Home tab tapped while already on /app/chat: trigger reset, don't navigate
+        if (tab.href === '/app/chat' && active && onHomeTap) {
+          return (
+            <button key={tab.href} onClick={onHomeTap} className={cls}>
+              {iconEl}{labelEl}
+            </button>
+          )
+        }
+
         return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5"
-          >
-            <div
-              className={`p-1.5 rounded-lg transition-colors ${
-                active ? 'bg-amber-100 text-amber-600' : 'text-stone-400'
-              }`}
-            >
-              {tab.icon}
-            </div>
-            <span
-              className={`text-[10px] font-medium leading-none ${
-                active ? 'text-amber-600' : 'text-stone-400'
-              }`}
-            >
-              {tab.label}
-            </span>
+          <Link key={tab.href} href={tab.href} className={cls}>
+            {iconEl}{labelEl}
           </Link>
         )
       })}

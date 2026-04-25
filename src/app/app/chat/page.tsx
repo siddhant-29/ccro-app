@@ -15,12 +15,20 @@ export default function ChatPage() {
   const { messages, isLoading, historyLoaded, sendMessage, stopStreaming, loadHistory } = useChat()
 
   const [input, setInput] = useState('')
+  const [showHome, setShowHome] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     loadHistory()
   }, [loadHistory])
+
+  // After history loads: if there are existing messages, show them (not chips)
+  useEffect(() => {
+    if (historyLoaded && messages.length > 0) {
+      setShowHome(false)
+    }
+  }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -33,6 +41,7 @@ export default function ChatPage() {
     if (!input.trim() || isLoading) return
     const msg = input.trim()
     setInput('')
+    setShowHome(false)
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -91,7 +100,7 @@ export default function ChatPage() {
               </div>
             ))}
           </div>
-        ) : messages.length === 0 ? (
+        ) : showHome ? (
           <WelcomeState
             suggestions={suggestions}
             onSelect={q => {
@@ -151,7 +160,7 @@ export default function ChatPage() {
           )}
         </div>
       </div>
-      <BottomNav />
+      <BottomNav onHomeTap={() => setShowHome(true)} />
     </div>
   )
 }
