@@ -21,9 +21,9 @@ export async function buildContext(
     current_points_balance: number
     balance_last_updated: string
   }>,
-  options: { tier?: 'basic' | 'pro' | 'max' } = {}
+  options: { tier?: 'basic' | 'pro' | 'max'; userCountry?: string } = {}
 ): Promise<RewardsContext> {
-  const { tier = 'max' } = options
+  const { tier = 'max', userCountry = 'IN' } = options
   const partnerLimit = tier === 'basic' ? 3 : undefined
 
   const context: RewardsContext = {
@@ -52,8 +52,8 @@ export async function buildContext(
 
   try {
     const [earnRates, partners] = await Promise.all([
-      fetchEarnRates(allCardIds),
-      fetchTransferPartners(allCardIds, partnerLimit),
+      fetchEarnRates(allCardIds, userCountry),
+      fetchTransferPartners(allCardIds, userCountry, partnerLimit),
     ])
 
     console.log('[context-builder] earn rates fetched:', earnRates.length)
@@ -98,11 +98,13 @@ export async function buildContext(
 
 // ── private helpers ────────────────────────────────────────────────────────
 
-async function fetchEarnRates(cardIds: string[]): Promise<EarnRate[]> {
+async function fetchEarnRates(cardIds: string[], countryCode: string): Promise<EarnRate[]> {
   const { data, error } = await supabaseAdmin!
     .from('earn_rates')
     .select('*')
     .in('card_id', cardIds)
+    .eq('country_code', countryCode)
+    .eq('availability_status', 'active')
     .is('effective_to', null)
     .order('card_id')
     .order('category')
@@ -116,12 +118,15 @@ async function fetchEarnRates(cardIds: string[]): Promise<EarnRate[]> {
 
 async function fetchTransferPartners(
   cardIds: string[],
+  countryCode: string,
   limit?: number
 ): Promise<TransferPartner[]> {
   let query = supabaseAdmin!
     .from('transfer_partners')
     .select('*')
     .in('card_id', cardIds)
+    .eq('country_code', countryCode)
+    .eq('availability_status', 'active')
     .is('effective_to', null)
     .order('card_id')
     .order('partner_tier')

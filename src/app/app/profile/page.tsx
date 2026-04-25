@@ -185,6 +185,16 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Country */}
+        <div className="bg-white border border-stone-200 rounded-2xl p-5">
+          <h2 className="font-medium text-stone-900 text-sm mb-3">Country</h2>
+          <div className="flex items-center gap-3 p-3.5 rounded-xl border border-stone-100 bg-stone-50">
+            <span className="text-xl leading-none">🇮🇳</span>
+            <span className="text-sm text-stone-700">India</span>
+            <span className="ml-auto text-xs text-stone-400">More regions coming soon</span>
+          </div>
+        </div>
+
         {/* Sign out */}
         <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
           <button

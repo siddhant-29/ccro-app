@@ -110,6 +110,11 @@ export default function OnboardingPage() {
       }
     }
 
+    // Stamp country and preference onto user metadata
+    await supabase.auth.updateUser({
+      data: { country_code: 'IN', preference },
+    })
+
     // Mark onboarding done so middleware won't redirect back
     document.cookie = 'onboarding_skipped=1; path=/; max-age=31536000'
 

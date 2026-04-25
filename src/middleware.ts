@@ -11,15 +11,18 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const { pathname } = req.nextUrl
 
-  // ── Admin routes — separate JWT check ─────────────────
+  // ── Admin routes — Supabase session + ADMIN_USER_ID check ────
   if (pathname.startsWith('/admin')) {
-    // Skip the login page itself
-    if (pathname === '/admin/login') return res
+    const supabase = createMiddlewareClient({ req, res })
+    const { data: { session } } = await supabase.auth.getSession()
 
-    const adminToken = req.cookies.get('admin_token')?.value
-    if (!adminToken || !isValidAdminToken(adminToken)) {
-      const loginUrl = new URL('/admin/login', req.url)
-      return NextResponse.redirect(loginUrl)
+    const isAdmin =
+      session != null &&
+      process.env.ADMIN_USER_ID != null &&
+      session.user.id === process.env.ADMIN_USER_ID
+
+    if (!isAdmin) {
+      return NextResponse.rewrite(new URL('/404', req.url))
     }
     return res
   }
@@ -68,19 +71,6 @@ export async function middleware(req: NextRequest) {
   return res
 }
 
-// ─────────────────────────────────────────────────────────
-// Admin token verification
-// Simple JWT check — admin panel has separate auth from users
-// ─────────────────────────────────────────────────────────
-function isValidAdminToken(token: string): boolean {
-  try {
-    // In production this uses jsonwebtoken to verify the JWT
-    // For now, basic presence check — full JWT verify in KAN-59
-    return token.length > 20
-  } catch {
-    return false
-  }
-}
 
 export const config = {
   matcher: [

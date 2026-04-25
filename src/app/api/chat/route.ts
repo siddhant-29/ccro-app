@@ -145,7 +145,8 @@ export async function POST(req: Request) {
   }
 
   // 7. Build context
-  const rewardsContext = await buildContext(classified, userPortfolio)
+  const userCountry = (user.user_metadata?.country_code as string | undefined) ?? 'IN'
+  const rewardsContext = await buildContext(classified, userPortfolio, { userCountry })
   const verifiedBlock = formatRewardsContext(rewardsContext)
   const intentHint = classified.intent !== 'general_education'
     ? `[Intent: ${classified.intent}]\n\n`
