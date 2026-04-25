@@ -119,7 +119,7 @@ export default function SignInPage() {
         </form>
 
         <p className="text-center text-stone-400 text-xs mt-8 leading-relaxed">
-          We'll email you a magic link. No password needed.
+          We&apos;ll email you a magic link. No password needed.
         </p>
       </div>
     </div>
