@@ -3,11 +3,11 @@
 // KAN-56–65: EP7 AI Chat Interface
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import Link from 'next/link'
 import { useRequireAuth } from '@/hooks/useAuth'
 import { useCards } from '@/hooks/useCards'
 import { useChat, type ChatMessage } from '@/hooks/useChat'
 import { getSuggestedQueries } from '@/lib/suggested-queries'
+import { BottomNav } from '@/components/BottomNav'
 
 export default function ChatPage() {
   const { user, loading: authLoading } = useRequireAuth()
@@ -58,16 +58,13 @@ export default function ChatPage() {
     <div className="min-h-screen bg-stone-50 flex flex-col">
 
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center sticky top-0 z-10">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 bg-amber-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-bold leading-none">CC</span>
           </div>
           <span className="font-semibold text-stone-900 text-sm">Rewards Advisor</span>
         </div>
-        <Link href="/app/portfolio" className="text-sm text-stone-500 hover:text-stone-700 transition-colors">
-          Portfolio
-        </Link>
       </header>
 
       {/* Card pills */}
@@ -113,7 +110,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input area */}
-      <div className="bg-white border-t border-stone-200 px-4 py-3 sticky bottom-0">
+      <div className="bg-white border-t border-stone-200 px-4 py-3 sticky bottom-14 z-10">
         <div className="max-w-2xl mx-auto flex gap-2 items-end">
           <textarea
             ref={textareaRef}
@@ -154,6 +151,7 @@ export default function ChatPage() {
           )}
         </div>
       </div>
+      <BottomNav />
     </div>
   )
 }
