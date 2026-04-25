@@ -35,22 +35,28 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState('')
   const [preference, setPreference] = useState<Preference | null>(null)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [prefSaving, setPrefSaving] = useState(false)
 
-  // Populate from user metadata on load
+  // Load fresh name from server on mount (avoids stale cache)
   useEffect(() => {
-    if (!user) return
-    setDisplayName(user.user_metadata?.display_name ?? '')
-    setPreference(user.user_metadata?.preference ?? null)
-  }, [user])
+    const supabase = createBrowserClient()
+    supabase.auth.getUser().then(({ data: { user: freshUser } }) => {
+      if (!freshUser) return
+      setDisplayName(freshUser.user_metadata?.display_name ?? freshUser.email?.split('@')[0] ?? '')
+      setPreference(freshUser.user_metadata?.preference ?? null)
+    })
+  }, [])
 
-  async function saveDisplayName() {
-    if (!user || !displayName.trim()) return
-    if (displayName.trim() === (user.user_metadata?.display_name ?? '')) return
+  async function handleSaveName(newName: string) {
+    if (!user || !newName.trim()) return
     setSaving(true)
     const supabase = createBrowserClient()
-    await supabase.auth.updateUser({ data: { display_name: displayName.trim() } })
+    await supabase.auth.updateUser({ data: { display_name: newName.trim() } })
+    await supabase.auth.refreshSession()
     setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   async function savePreference(value: Preference) {
@@ -114,13 +120,21 @@ export default function ProfilePage() {
                 type="text"
                 value={displayName}
                 onChange={e => setDisplayName(e.target.value)}
-                onBlur={saveDisplayName}
+                onBlur={e => handleSaveName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') displayNameRef.current?.blur() }}
                 placeholder="Your name"
                 className="flex-1 px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               />
               {saving && (
                 <div className="flex items-center text-xs text-stone-400 px-2">Saving…</div>
+              )}
+              {saved && !saving && (
+                <div className="flex items-center gap-1 text-xs text-green-600 px-2">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Saved
+                </div>
               )}
             </div>
           </div>
