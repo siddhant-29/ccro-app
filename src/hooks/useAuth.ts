@@ -5,7 +5,7 @@
 // Reusable hook for auth state across all client components
 // ─────────────────────────────────────────────────────────
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User, Session } from '@supabase/supabase-js'
 import { createBrowserClient } from '@/lib/supabase'
@@ -23,9 +23,12 @@ export function useAuth() {
     loading: true,
   })
 
-  const supabase = createBrowserClient()
+  // Defer client creation to effect time — avoids prerender env-var error
+  const supabaseRef = useRef<ReturnType<typeof createBrowserClient> | null>(null)
 
   useEffect(() => {
+    const supabase = supabaseRef.current ?? (supabaseRef.current = createBrowserClient())
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setState({

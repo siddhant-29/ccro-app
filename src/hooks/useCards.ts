@@ -14,13 +14,13 @@ import type { UserCard } from '@/types'
 const QUERY_KEY = ['user-cards']
 
 export function useCards(userId: string | undefined) {
-  const supabase = createBrowserClient()
-
   return useQuery({
     queryKey: [...QUERY_KEY, userId],
     queryFn: async (): Promise<UserCard[]> => {
       if (!userId) return []
 
+      // Client created inside queryFn — never runs during prerender
+      const supabase = createBrowserClient()
       const { data, error } = await supabase
         .from('user_cards')
         .select(`
@@ -44,7 +44,6 @@ export function useCards(userId: string | undefined) {
 }
 
 export function useUpdateCardBalance() {
-  const supabase = createBrowserClient()
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -57,6 +56,7 @@ export function useUpdateCardBalance() {
       userId: string
       balance: number
     }) => {
+      const supabase = createBrowserClient()
       const { error } = await supabase
         .from('user_cards')
         .update({
@@ -75,7 +75,6 @@ export function useUpdateCardBalance() {
 }
 
 export function useAddCard() {
-  const supabase = createBrowserClient()
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -88,6 +87,7 @@ export function useAddCard() {
       cardId: string
       balance: number
     }) => {
+      const supabase = createBrowserClient()
       const { error } = await supabase
         .from('user_cards')
         .insert({
@@ -105,7 +105,6 @@ export function useAddCard() {
 }
 
 export function useRemoveCard() {
-  const supabase = createBrowserClient()
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -116,6 +115,7 @@ export function useRemoveCard() {
       userId: string
       cardId: string
     }) => {
+      const supabase = createBrowserClient()
       const { error } = await supabase
         .from('user_cards')
         .delete()
