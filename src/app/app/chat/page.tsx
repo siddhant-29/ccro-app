@@ -1,10 +1,297 @@
+'use client'
+
+// KAN-56–65: EP7 AI Chat Interface
+
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import Link from 'next/link'
+import { useRequireAuth } from '@/hooks/useAuth'
+import { useCards } from '@/hooks/useCards'
+import { useChat, type ChatMessage } from '@/hooks/useChat'
+import { getSuggestedQueries } from '@/lib/suggested-queries'
+
 export default function ChatPage() {
+  const { user, loading: authLoading } = useRequireAuth()
+  const { data: cards } = useCards(user?.id)
+  const { messages, isLoading, historyLoaded, sendMessage, stopStreaming, loadHistory } = useChat()
+
+  const [input, setInput] = useState('')
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    loadHistory()
+  }, [loadHistory])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const cardIds = (cards ?? []).map(c => c.card_id)
+  const suggestions = getSuggestedQueries(cardIds)
+
+  function handleSend() {
+    if (!input.trim() || isLoading) return
+    const msg = input.trim()
+    setInput('')
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+    void sendMessage(msg)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-400 text-sm">Loading…</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Chat</h1>
-        <p className="text-gray-500">Coming soon.</p>
+    <div className="min-h-screen bg-stone-50 flex flex-col">
+
+      {/* Header */}
+      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-amber-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-xs font-bold leading-none">CC</span>
+          </div>
+          <span className="font-semibold text-stone-900 text-sm">Rewards Advisor</span>
+        </div>
+        <Link href="/app/portfolio" className="text-sm text-stone-500 hover:text-stone-700 transition-colors">
+          Portfolio
+        </Link>
+      </header>
+
+      {/* Card pills */}
+      {cards && cards.length > 0 && (
+        <div className="bg-white border-b border-stone-100 px-4 py-2 flex gap-2 overflow-x-auto">
+          {cards.map(card => (
+            <span
+              key={card.id}
+              className="text-xs bg-stone-100 text-stone-600 px-2.5 py-1 rounded-full whitespace-nowrap flex-shrink-0"
+            >
+              {card.card_rewards?.card_name ?? card.card_id}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 max-w-2xl mx-auto w-full">
+        {!historyLoaded ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                <div className="h-12 bg-stone-100 rounded-2xl animate-pulse w-52" />
+              </div>
+            ))}
+          </div>
+        ) : messages.length === 0 ? (
+          <WelcomeState
+            suggestions={suggestions}
+            onSelect={q => {
+              setInput(q)
+              textareaRef.current?.focus()
+            }}
+          />
+        ) : (
+          <div className="space-y-4">
+            {messages.map(msg => (
+              <MessageBubble key={msg.id} message={msg} />
+            ))}
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input area */}
+      <div className="bg-white border-t border-stone-200 px-4 py-3 sticky bottom-0">
+        <div className="max-w-2xl mx-auto flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={e => {
+              setInput(e.target.value)
+              e.target.style.height = 'auto'
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about your rewards…"
+            rows={1}
+            disabled={isLoading && !messages.some(m => m.isStreaming)}
+            className="flex-1 resize-none bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent overflow-hidden"
+            style={{ minHeight: '40px', maxHeight: '120px' }}
+          />
+          {isLoading ? (
+            <button
+              onClick={stopStreaming}
+              className="w-10 h-10 flex-shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-colors"
+              aria-label="Stop streaming"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="6" width="12" height="12" rx="1" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className="w-10 h-10 flex-shrink-0 bg-amber-600 hover:bg-amber-700 disabled:bg-stone-200 text-white disabled:text-stone-400 rounded-xl flex items-center justify-center transition-colors"
+              aria-label="Send"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.269 20.876L5.999 12zm0 0h7.5" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
     </div>
+  )
+}
+
+// ── Sub-components ───────────────────────────────────────────────────────
+
+function WelcomeState({
+  suggestions,
+  onSelect,
+}: {
+  suggestions: string[]
+  onSelect: (q: string) => void
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="w-14 h-14 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-center mb-5">
+        <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
+          <span className="text-white text-sm font-bold leading-none">CC</span>
+        </div>
+      </div>
+      <h2 className="text-lg font-semibold text-stone-900 mb-1.5">Your rewards advisor</h2>
+      <p className="text-stone-500 text-sm mb-8 max-w-xs leading-relaxed">
+        Ask about your cards, redemptions, or how to maximise your points.
+      </p>
+      <div className="space-y-2 w-full max-w-sm">
+        {suggestions.map((q, i) => (
+          <button
+            key={i}
+            onClick={() => onSelect(q)}
+            className="w-full text-left text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-4 py-3 hover:border-amber-400 hover:text-stone-900 transition-colors leading-snug"
+          >
+            {q}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MessageBubble({ message }: { message: ChatMessage }) {
+  const isUser = message.role === 'user'
+
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[85%] ${
+        isUser
+          ? 'bg-amber-600 text-white rounded-2xl rounded-br-md px-4 py-2.5'
+          : 'bg-white border border-stone-200 text-stone-900 rounded-2xl rounded-bl-md px-4 py-3'
+      }`}>
+        {!isUser && message.isStreaming && message.content === '' ? (
+          <TypingIndicator />
+        ) : isUser ? (
+          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        ) : (
+          <MarkdownContent content={message.content} />
+        )}
+        {message.stopped && (
+          <p className="text-xs text-stone-400 mt-1.5 italic">Stopped</p>
+        )}
+        {message.error && (
+          <p className="text-xs text-red-500 mt-1.5">{message.error.message}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TypingIndicator() {
+  return (
+    <div className="flex gap-1.5 py-0.5 items-center">
+      {[0, 150, 300].map(delay => (
+        <div
+          key={delay}
+          className="w-2 h-2 bg-stone-400 rounded-full animate-bounce"
+          style={{ animationDelay: `${delay}ms` }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  if (!content) return null
+
+  return (
+    <div className="space-y-1">
+      {content.split('\n').map((line, i) => (
+        <MarkdownLine key={i} line={line} />
+      ))}
+    </div>
+  )
+}
+
+function MarkdownLine({ line }: { line: string }) {
+  if (line === '') return <div className="h-1.5" />
+  if (line.startsWith('### ')) return <h3 className="font-semibold text-sm mt-1.5">{parseInline(line.slice(4))}</h3>
+  if (line.startsWith('## '))  return <h2 className="font-semibold text-sm mt-2">{parseInline(line.slice(3))}</h2>
+  if (line.startsWith('# '))   return <h1 className="font-semibold text-sm mt-2">{parseInline(line.slice(2))}</h1>
+
+  if (line.startsWith('- ') || line.startsWith('* ')) {
+    return (
+      <div className="flex gap-1.5 items-start">
+        <span className="mt-2 w-1.5 h-1.5 bg-stone-400 rounded-full flex-shrink-0" />
+        <span className="text-sm leading-relaxed">{parseInline(line.slice(2))}</span>
+      </div>
+    )
+  }
+
+  const numberedMatch = line.match(/^(\d+)\.\s(.*)$/)
+  if (numberedMatch) {
+    return (
+      <div className="text-sm leading-relaxed">
+        <span className="text-stone-500 mr-1">{numberedMatch[1]}.</span>
+        {parseInline(numberedMatch[2])}
+      </div>
+    )
+  }
+
+  return <p className="text-sm leading-relaxed">{parseInline(line)}</p>
+}
+
+function parseInline(text: string): ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/)
+  if (parts.length === 1) return text
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
+        }
+        if (part.startsWith('*') && part.endsWith('*')) {
+          return <em key={i}>{part.slice(1, -1)}</em>
+        }
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return <code key={i} className="font-mono text-xs bg-stone-100 px-1 py-0.5 rounded">{part.slice(1, -1)}</code>
+        }
+        return part
+      })}
+    </>
   )
 }
