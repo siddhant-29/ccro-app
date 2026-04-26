@@ -7,9 +7,29 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+const PUBLIC_ROUTES = [
+  '/sign-in',
+  '/sign-in/verify',
+  '/auth/callback',
+]
+
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const { pathname } = req.nextUrl
+
+  // Always allow public routes through immediately — no Supabase calls
+  if (PUBLIC_ROUTES.some(r => pathname.startsWith(r))) {
+    return NextResponse.next()
+  }
+
+  // Allow API routes, static assets, and favicon through (they handle their own auth)
+  if (
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/_next/') ||
+    pathname === '/favicon.ico'
+  ) {
+    return NextResponse.next()
+  }
 
   // ── Admin routes — Supabase session + ADMIN_USER_ID check ────
   if (pathname.startsWith('/admin')) {
@@ -27,13 +47,12 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  // ── Protected app routes — Supabase session check ─────
+  // ── Protected app routes — Supabase session check ─────────────
   if (pathname.startsWith('/app')) {
     const supabase = createMiddlewareClient({ req, res })
     const { data: { session } } = await supabase.auth.getSession()
 
     if (!session) {
-      // Preserve the destination for post-login redirect (EC-012)
       const signInUrl = new URL('/sign-in', req.url)
       signInUrl.searchParams.set('returnTo', pathname)
       return NextResponse.redirect(signInUrl)
@@ -55,7 +74,7 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  // ── Onboarding — requires auth ─────────────────────────
+  // ── Onboarding — requires auth ─────────────────────────────────
   if (pathname.startsWith('/onboarding')) {
     const supabase = createMiddlewareClient({ req, res })
     const { data: { session } } = await supabase.auth.getSession()
@@ -71,11 +90,12 @@ export async function middleware(req: NextRequest) {
   return res
 }
 
-
 export const config = {
   matcher: [
     '/app/:path*',
     '/admin/:path*',
     '/onboarding/:path*',
+    '/sign-in/:path*',
+    '/auth/:path*',
   ],
 }
