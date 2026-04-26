@@ -8,6 +8,7 @@ import { useCards } from '@/hooks/useCards'
 import { useChat, type ChatMessage } from '@/hooks/useChat'
 import { getDynamicHomeQuestions } from '@/lib/suggested-queries'
 import { BottomNav } from '@/components/BottomNav'
+import { createBrowserClient } from '@/lib/supabase'
 
 export default function ChatPage() {
   const { user, loading: authLoading } = useRequireAuth()
@@ -17,6 +18,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [showHome, setShowHome] = useState(true)
   const [homeQuestions, setHomeQuestions] = useState<string[]>([])
+  const [isFirstSession, setIsFirstSession] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -54,6 +56,17 @@ export default function ChatPage() {
     }
   }, [cardList]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Detect first session — zero conversations means welcome screen
+  useEffect(() => {
+    if (!user) return
+    const supabase = createBrowserClient()
+    supabase
+      .from('conversations')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .then(({ count }) => { setIsFirstSession((count ?? 0) === 0) })
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Listen for home-reset — regenerate questions on every Home tab tap
   useEffect(() => {
     function onHomeReset() {
@@ -73,6 +86,7 @@ export default function ChatPage() {
     const msg = (directMsg ?? input).trim()
     if (!msg || isLoading) return
     setShowHome(false)
+    setIsFirstSession(false)
     if (!directMsg) {
       setInput('')
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
@@ -135,12 +149,21 @@ export default function ChatPage() {
             ))}
           </div>
         ) : showHome ? (
-          <WelcomeState
-            greeting={greeting}
-            firstName={firstName}
-            homeQuestions={homeQuestions}
-            onSend={handleSend}
-          />
+          isFirstSession ? (
+            <FirstSessionWelcome
+              firstName={firstName}
+              cardList={cardList}
+              homeQuestions={homeQuestions}
+              onSend={handleSend}
+            />
+          ) : (
+            <WelcomeState
+              greeting={greeting}
+              firstName={firstName}
+              homeQuestions={homeQuestions}
+              onSend={handleSend}
+            />
+          )
         ) : (
           <div className="space-y-4">
             {messages.map(msg => (
@@ -200,6 +223,60 @@ export default function ChatPage() {
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────
+
+function FirstSessionWelcome({
+  firstName,
+  cardList,
+  homeQuestions,
+  onSend,
+}: {
+  firstName: string
+  cardList: { id: string; name: string }[]
+  homeQuestions: string[]
+  onSend: (q: string) => void
+}) {
+  return (
+    <div className="flex flex-col items-center px-4 py-8 gap-6">
+      <div className="text-center">
+        <div className="text-3xl mb-3">👋</div>
+        <h1 className="text-xl font-semibold text-stone-900 mb-1">
+          Welcome to CCRO{firstName && firstName !== 'there' ? `, ${firstName}` : ''}!
+        </h1>
+        <p className="text-sm text-stone-400 leading-relaxed">
+          Your AI-powered credit card rewards advisor
+        </p>
+      </div>
+
+      {cardList.length > 0 && (
+        <div className="w-full max-w-sm bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <p className="text-xs font-medium text-amber-700 mb-2">Your registered cards</p>
+          <div className="flex flex-col gap-1">
+            {cardList.map(card => (
+              <div key={card.id} className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span className="text-sm text-stone-700">{card.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="text-sm text-stone-500 text-center">Here&apos;s what I can help you with today:</p>
+
+      <div className="flex flex-col gap-3 w-full max-w-sm">
+        {homeQuestions.map((q, i) => (
+          <button
+            key={i}
+            onClick={() => onSend(q)}
+            className="w-full text-left px-4 py-3 bg-white border border-stone-200 rounded-xl text-sm text-stone-700 hover:border-amber-300 hover:bg-amber-50 active:scale-95 transition-all duration-150 leading-snug"
+          >
+            {q}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function WelcomeState({
   greeting,
