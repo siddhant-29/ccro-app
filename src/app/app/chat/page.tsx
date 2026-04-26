@@ -64,7 +64,10 @@ export default function ChatPage() {
       .from('conversations')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .then(({ count }) => { setIsFirstSession((count ?? 0) === 0) })
+      .then(({ count }) => {
+        const forceFirstSession = new URLSearchParams(window.location.search).get('first') === 'true'
+        setIsFirstSession(forceFirstSession || (count ?? 0) === 0)
+      })
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for home-reset — regenerate questions on every Home tab tap
