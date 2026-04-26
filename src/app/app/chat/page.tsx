@@ -2,11 +2,11 @@
 
 // KAN-56–65: EP7 AI Chat Interface | KAN-123/127: layout + animations
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRequireAuth } from '@/hooks/useAuth'
 import { useCards } from '@/hooks/useCards'
 import { useChat, type ChatMessage } from '@/hooks/useChat'
-import { getSuggestedQueries } from '@/lib/suggested-queries'
+import { getDynamicHomeQuestions } from '@/lib/suggested-queries'
 import { BottomNav } from '@/components/BottomNav'
 
 export default function ChatPage() {
@@ -16,8 +16,25 @@ export default function ChatPage() {
 
   const [input, setInput] = useState('')
   const [showHome, setShowHome] = useState(true)
+  const [homeQuestions, setHomeQuestions] = useState<string[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Stable card list for question generation
+  const cardList = useMemo(
+    () => (cards ?? []).map(c => ({
+      id: c.card_id,
+      name: c.card_rewards?.card_name ?? c.card_id,
+    })),
+    [cards]
+  )
+
+  // Time-aware greeting
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const firstName =
+    ((user?.user_metadata?.full_name ?? user?.user_metadata?.name) as string | undefined)
+      ?.split(' ')[0] ?? 'there'
 
   useEffect(() => {
     loadHistory()
@@ -30,27 +47,35 @@ export default function ChatPage() {
     }
   }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for home-reset event dispatched by BottomNav when on this tab
+  // Initialise questions when cards first load
   useEffect(() => {
-    function onHomeReset() { setShowHome(true) }
+    if (cards !== undefined) {
+      setHomeQuestions(getDynamicHomeQuestions(cardList, null))
+    }
+  }, [cardList]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for home-reset — regenerate questions on every Home tab tap
+  useEffect(() => {
+    function onHomeReset() {
+      setShowHome(true)
+      setHomeQuestions(getDynamicHomeQuestions(cardList, null))
+      window.scrollTo({ top: 0 })
+    }
     window.addEventListener('ccro:home-reset', onHomeReset)
     return () => window.removeEventListener('ccro:home-reset', onHomeReset)
-  }, [])
+  }, [cardList])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const cardIds = (cards ?? []).map(c => c.card_id)
-  const suggestions = getSuggestedQueries(cardIds)
-
-  function handleSend() {
-    if (!input.trim() || isLoading) return
-    const msg = input.trim()
-    setInput('')
+  function handleSend(directMsg?: string) {
+    const msg = (directMsg ?? input).trim()
+    if (!msg || isLoading) return
     setShowHome(false)
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
+    if (!directMsg) {
+      setInput('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
     }
     void sendMessage(msg)
   }
@@ -111,11 +136,10 @@ export default function ChatPage() {
           </div>
         ) : showHome ? (
           <WelcomeState
-            suggestions={suggestions}
-            onSelect={q => {
-              setInput(q)
-              textareaRef.current?.focus()
-            }}
+            greeting={greeting}
+            firstName={firstName}
+            homeQuestions={homeQuestions}
+            onSend={handleSend}
           />
         ) : (
           <div className="space-y-4">
@@ -157,7 +181,7 @@ export default function ChatPage() {
             </button>
           ) : (
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim()}
               className="w-10 h-10 flex-shrink-0 bg-amber-600 hover:bg-amber-700 disabled:bg-stone-200 text-white disabled:text-stone-400 rounded-xl flex items-center justify-center transition-all duration-100 active:scale-95"
               aria-label="Send"
@@ -178,29 +202,33 @@ export default function ChatPage() {
 // ── Sub-components ───────────────────────────────────────────────────────
 
 function WelcomeState({
-  suggestions,
-  onSelect,
+  greeting,
+  firstName,
+  homeQuestions,
+  onSend,
 }: {
-  suggestions: string[]
-  onSelect: (q: string) => void
+  greeting: string
+  firstName: string
+  homeQuestions: string[]
+  onSend: (q: string) => void
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
+    <div className="flex flex-col items-center justify-center py-10 text-center">
       <div className="w-14 h-14 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-center mb-5">
         <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
           <span className="text-white text-sm font-bold leading-none">CC</span>
         </div>
       </div>
-      <h2 className="text-lg font-semibold text-stone-900 mb-1.5">Your rewards advisor</h2>
-      <p className="text-stone-500 text-sm mb-8 max-w-xs leading-relaxed">
-        Ask about your cards, redemptions, or how to maximise your points.
-      </p>
-      <div className="space-y-2 w-full max-w-sm">
-        {suggestions.map((q, i) => (
+      <h2 className="text-lg font-semibold text-stone-900 mb-1">
+        {greeting}, {firstName} 👋
+      </h2>
+      <p className="text-stone-500 text-sm mb-7">What can I help you with today?</p>
+      <div className="grid grid-cols-1 gap-3 w-full max-w-lg mx-auto">
+        {homeQuestions.map((q, i) => (
           <button
             key={i}
-            onClick={() => onSelect(q)}
-            className="w-full text-left text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-4 py-3 hover:border-amber-400 hover:text-stone-900 transition-all duration-100 active:scale-95 leading-snug"
+            onClick={() => onSend(q)}
+            className="w-full text-left px-4 py-3 bg-white border border-stone-200 rounded-xl text-sm text-stone-700 hover:border-amber-300 hover:bg-amber-50 active:scale-95 transition-all duration-150 leading-snug"
           >
             {q}
           </button>
