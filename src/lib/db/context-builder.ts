@@ -105,11 +105,12 @@ async function fetchCardDetails(cardIds: string[]): Promise<CardDetails[]> {
   const { data, error } = await supabaseAdmin!
     .from('card_rewards')
     .select(
-      'card_id, card_name, card_type, card_network, ' +
+      'card_id, card_name, issuer, tier, card_type, card_network, ' +
+      'annual_fee_inr, annual_fee_amount, joining_fee_inr, joining_fee_amount, ' +
       'forex_markup_pct, lounge_dom_per_year, lounge_intl_per_year, ' +
       'upi_supported, availability_status, ' +
       'welcome_benefit_desc, renewal_benefit_desc, ' +
-      'annual_fee_amount, joining_fee_amount, fee_waiver_threshold'
+      'fee_waiver_threshold, country_code, currency, verified'
     )
     .in('card_id', cardIds)
 

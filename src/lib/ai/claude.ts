@@ -59,36 +59,35 @@ export function formatRewardsContext(context: RewardsContext): string {
   if (context.card_details && context.card_details.length > 0) {
     const details = context.card_details
       .map((d: CardDetails) => {
-        const lounge = (n: number | null, label: string) => {
-          if (n == null) return null
-          return `${label}: ${n >= 9999 ? 'Unlimited' : `${n}/yr`}`
-        }
+        const loungeStr = (n: number | null) =>
+          n === 9999 ? 'Unlimited' : `${n ?? 'N/A'}/year`
+
         const lines: string[] = [
           `  ${d.card_id.toUpperCase()} — ${d.card_name}`,
         ]
         const attrs: string[] = []
-        if (d.card_type)           attrs.push(`card type: ${d.card_type}`)
         if (d.card_network)        attrs.push(`network: ${d.card_network}`)
         if (d.availability_status) attrs.push(`status: ${d.availability_status}`)
+        if (d.issuer)              attrs.push(`issuer: ${d.issuer}`)
+        if (d.tier)                attrs.push(`tier: ${d.tier}`)
         if (attrs.length) lines.push(`    ${attrs.join(' | ')}`)
 
-        const perks: (string | null)[] = [
-          d.forex_markup_pct != null ? `Forex markup: ${d.forex_markup_pct}%` : null,
-          lounge(d.lounge_dom_per_year,  'Domestic lounge'),
-          lounge(d.lounge_intl_per_year, 'Intl lounge'),
-          `UPI: ${d.upi_supported ? 'Yes' : 'No'}`,
-        ]
-        const perkLine = perks.filter(Boolean).join(' | ')
-        if (perkLine) lines.push(`    ${perkLine}`)
+        lines.push(`    Card type: ${d.card_type ?? 'points'}`)
+        lines.push(`    Forex markup: ${d.forex_markup_pct ?? 'N/A'}%`)
+        lines.push(`    Domestic lounge: ${loungeStr(d.lounge_dom_per_year)}`)
+        lines.push(`    International lounge: ${loungeStr(d.lounge_intl_per_year)}`)
+        lines.push(`    UPI supported: ${d.upi_supported ? 'Yes' : 'No'}`)
+
+        const annualFee = d.annual_fee_amount ?? d.annual_fee_inr
+        const joiningFee = d.joining_fee_amount ?? d.joining_fee_inr
+        const fees: string[] = []
+        if (annualFee != null)              fees.push(`Annual fee: ₹${annualFee.toLocaleString()}`)
+        if (joiningFee != null)             fees.push(`Joining fee: ₹${joiningFee.toLocaleString()}`)
+        if (d.fee_waiver_threshold != null) fees.push(`Fee waiver at: ₹${d.fee_waiver_threshold.toLocaleString()} spend`)
+        if (fees.length) lines.push(`    ${fees.join(' | ')}`)
 
         if (d.welcome_benefit_desc) lines.push(`    Welcome benefit: ${d.welcome_benefit_desc}`)
         if (d.renewal_benefit_desc) lines.push(`    Renewal benefit: ${d.renewal_benefit_desc}`)
-
-        const fees: string[] = []
-        if (d.annual_fee_amount != null) fees.push(`Annual fee: ₹${d.annual_fee_amount.toLocaleString()}`)
-        if (d.joining_fee_amount != null) fees.push(`Joining fee: ₹${d.joining_fee_amount.toLocaleString()}`)
-        if (d.fee_waiver_threshold != null) fees.push(`Fee waiver at: ₹${d.fee_waiver_threshold.toLocaleString()} spend`)
-        if (fees.length) lines.push(`    ${fees.join(' | ')}`)
 
         return lines.join('\n')
       })
