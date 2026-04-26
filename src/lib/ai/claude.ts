@@ -83,6 +83,13 @@ export function formatRewardsContext(context: RewardsContext): string {
 
         if (d.welcome_benefit_desc) lines.push(`    Welcome benefit: ${d.welcome_benefit_desc}`)
         if (d.renewal_benefit_desc) lines.push(`    Renewal benefit: ${d.renewal_benefit_desc}`)
+
+        const fees: string[] = []
+        if (d.annual_fee_amount != null) fees.push(`Annual fee: ₹${d.annual_fee_amount.toLocaleString()}`)
+        if (d.joining_fee_amount != null) fees.push(`Joining fee: ₹${d.joining_fee_amount.toLocaleString()}`)
+        if (d.fee_waiver_threshold != null) fees.push(`Fee waiver at: ₹${d.fee_waiver_threshold.toLocaleString()} spend`)
+        if (fees.length) lines.push(`    ${fees.join(' | ')}`)
+
         return lines.join('\n')
       })
       .join('\n')

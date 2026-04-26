@@ -260,6 +260,9 @@ export interface CardDetails {
   availability_status: string | null
   welcome_benefit_desc: string | null
   renewal_benefit_desc: string | null
+  annual_fee_amount: number | null
+  joining_fee_amount: number | null
+  fee_waiver_threshold: number | null
 }
 
 export interface RewardsContext {

@@ -108,7 +108,8 @@ async function fetchCardDetails(cardIds: string[]): Promise<CardDetails[]> {
       'card_id, card_name, card_type, card_network, ' +
       'forex_markup_pct, lounge_dom_per_year, lounge_intl_per_year, ' +
       'upi_supported, availability_status, ' +
-      'welcome_benefit_desc, renewal_benefit_desc'
+      'welcome_benefit_desc, renewal_benefit_desc, ' +
+      'annual_fee_amount, joining_fee_amount, fee_waiver_threshold'
     )
     .in('card_id', cardIds)
 
