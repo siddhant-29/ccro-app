@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 const TABS = [
   {
@@ -13,6 +14,19 @@ const TABS = [
         <path d="M9 21V12h6v9" />
       </svg>
     ),
+  },
+  {
+    href: '/app/news',
+    label: 'News',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v8a2 2 0 01-2 2z" />
+        <path d="M17 20v-8h-6v8" />
+        <path d="M7 8h4" />
+        <path d="M7 12h4" />
+      </svg>
+    ),
+    showBadge: true,
   },
   {
     href: '/app/history',
@@ -48,6 +62,14 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname()
+  const [newsUnread, setNewsUnread] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/news/unread-count')
+      .then(r => r.json())
+      .then(({ count }: { count: number }) => setNewsUnread(count ?? 0))
+      .catch(() => {})
+  }, [pathname])
 
   return (
     <nav
@@ -56,10 +78,17 @@ export function BottomNav() {
     >
       {TABS.map(tab => {
         const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
-        const cls = 'flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors duration-150'
+        const cls = 'flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors duration-150 relative'
+        const showBadge = (tab as { showBadge?: boolean }).showBadge && newsUnread > 0
+
         const iconEl = (
-          <div className={`p-1.5 rounded-lg transition-colors duration-150 ${active ? 'bg-amber-50 text-amber-600' : 'text-stone-400'}`}>
+          <div className={`p-1.5 rounded-lg transition-colors duration-150 relative ${active ? 'bg-amber-50 text-amber-600' : 'text-stone-400'}`}>
             {tab.icon}
+            {showBadge && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                {newsUnread > 9 ? '9+' : newsUnread}
+              </span>
+            )}
           </div>
         )
         const labelEl = (
@@ -68,7 +97,6 @@ export function BottomNav() {
           </span>
         )
 
-        // Home tab while on /app/chat: fire reset event instead of navigating
         if (tab.href === '/app/chat' && active) {
           return (
             <button

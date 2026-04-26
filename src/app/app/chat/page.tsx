@@ -40,11 +40,21 @@ export default function ChatPage() {
 
   // Load a specific conversation when ?conversationId= is in the URL
   useEffect(() => {
-    const convId = new URLSearchParams(window.location.search).get('conversationId')
+    const sp = new URLSearchParams(window.location.search)
+    const convId = sp.get('conversationId')
     if (convId) {
       loadConversationById(convId).then(loaded => {
         if (loaded) setShowHome(false)
       })
+      return
+    }
+    // Pre-filled query from news detail "Ask CCRO" CTA
+    const q = sp.get('q')
+    if (q) {
+      setShowHome(false)
+      setIsFirstSession(false)
+      window.history.replaceState({}, '', '/app/chat')
+      void sendMessage(q)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
