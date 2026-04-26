@@ -208,6 +208,7 @@ export default function NewsPostEditorPage() {
   }
 
   async function handleArchive() {
+    if (typeof window === 'undefined') return
     if (!existingPost?.id) return
     if (!window.confirm('Archive this post? Users won\'t see it anymore.')) return
     const res = await fetch(`/api/admin/news/${postId}`, { method: 'DELETE' })
