@@ -19,10 +19,41 @@ function truncate(str: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max - 1) + '…'
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const conversationId = searchParams.get('conversationId')
+
   const supabase = createRouteHandlerClient({ cookies })
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ conversations: [] })
+  if (!user) return Response.json({ conversations: [], messages: [] })
+
+  // Return messages for a specific conversation (user turn + following assistant turn)
+  if (conversationId) {
+    const { data: userTurn } = await supabaseAdmin
+      .from('conversations')
+      .select('role, content, created_at')
+      .eq('user_id', user.id)
+      .eq('created_at', conversationId)
+      .maybeSingle()
+
+    if (!userTurn) return Response.json({ messages: [] })
+
+    const { data: assistantTurn } = await supabaseAdmin
+      .from('conversations')
+      .select('role, content, created_at')
+      .eq('user_id', user.id)
+      .eq('role', 'assistant')
+      .gt('created_at', conversationId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    const messages = [
+      { role: (userTurn as ConvRow).role, content: extractText((userTurn as ConvRow).content), created_at: (userTurn as ConvRow).created_at },
+      ...(assistantTurn ? [{ role: (assistantTurn as ConvRow).role, content: extractText((assistantTurn as ConvRow).content), created_at: (assistantTurn as ConvRow).created_at }] : []),
+    ]
+    return Response.json({ messages })
+  }
 
   const { data } = await supabaseAdmin
     .from('conversations')

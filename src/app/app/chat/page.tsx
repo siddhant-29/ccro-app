@@ -13,7 +13,7 @@ import { createBrowserClient } from '@/lib/supabase'
 export default function ChatPage() {
   const { user, loading: authLoading } = useRequireAuth()
   const { data: cards } = useCards(user?.id)
-  const { messages, isLoading, historyLoaded, sendMessage, stopStreaming, loadHistory } = useChat()
+  const { messages, isLoading, sendMessage, stopStreaming, loadConversationById } = useChat()
 
   const [input, setInput] = useState('')
   const [showHome, setShowHome] = useState(true)
@@ -38,16 +38,15 @@ export default function ChatPage() {
     ((user?.user_metadata?.full_name ?? user?.user_metadata?.name) as string | undefined)
       ?.split(' ')[0] ?? 'there'
 
+  // Load a specific conversation when ?conversationId= is in the URL
   useEffect(() => {
-    loadHistory()
-  }, [loadHistory])
-
-  // After history loads: if there are existing messages, show them (not chips)
-  useEffect(() => {
-    if (historyLoaded && messages.length > 0) {
-      setShowHome(false)
+    const convId = new URLSearchParams(window.location.search).get('conversationId')
+    if (convId) {
+      loadConversationById(convId).then(loaded => {
+        if (loaded) setShowHome(false)
+      })
     }
-  }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialise questions when cards first load
   useEffect(() => {
@@ -143,15 +142,7 @@ export default function ChatPage() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6 max-w-2xl mx-auto w-full">
-        {!historyLoaded ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
-                <div className="h-12 bg-stone-100 rounded-2xl animate-pulse w-52" />
-              </div>
-            ))}
-          </div>
-        ) : showHome ? (
+        {showHome ? (
           isFirstSession ? (
             <FirstSessionWelcome
               firstName={firstName}

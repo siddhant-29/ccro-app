@@ -16,10 +16,10 @@ export interface ChatMessage {
 interface UseChatResult {
   messages: ChatMessage[]
   isLoading: boolean
-  historyLoaded: boolean
   sendMessage: (content: string) => Promise<void>
   stopStreaming: () => void
   loadHistory: () => Promise<void>
+  loadConversationById: (convId: string) => Promise<boolean>
 }
 
 export function useChat(): UseChatResult {
@@ -156,5 +156,26 @@ export function useChat(): UseChatResult {
     setIsLoading(false)
   }, [])
 
-  return { messages, isLoading, historyLoaded, sendMessage, stopStreaming, loadHistory }
+  const loadConversationById = useCallback(async (convId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/chat/history?conversationId=${encodeURIComponent(convId)}`)
+      if (!res.ok) return false
+      const { messages: history } = await res.json() as {
+        messages?: Array<{ role: string; content: string; created_at: string }>
+      }
+      if (!Array.isArray(history) || history.length === 0) return false
+      setMessages(history.map(m => ({
+        id: crypto.randomUUID(),
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        timestamp: m.created_at,
+      })))
+      return true
+    } catch (err) {
+      console.error('[useChat] loadConversationById error:', err)
+      return false
+    }
+  }, [])
+
+  return { messages, isLoading, sendMessage, stopStreaming, loadHistory, loadConversationById }
 }
