@@ -33,7 +33,14 @@ export default function SignInPage() {
     setLoading(false)
 
     if (error) {
-      setError('Something went wrong. Please try again.')
+      console.error('[sign-in] OTP error:', error.message, error.status)
+      if (error.message?.includes('rate')) {
+        setError('Too many requests — please wait a few minutes and try again.')
+      } else if (error.status === 422) {
+        setError('Invalid email address.')
+      } else {
+        setError(`Sign-in failed: ${error.message}`)
+      }
       return
     }
 
