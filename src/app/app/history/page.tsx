@@ -141,6 +141,8 @@ export default function HistoryPage() {
       )
     : conversations
 
+  if (typeof window === 'undefined') return null
+
   if (authLoading) {
     return (
       <div className="h-[100dvh] bg-stone-50 flex items-center justify-center">

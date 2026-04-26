@@ -76,6 +76,8 @@ export default function ProfilePage() {
     router.replace('/sign-in')
   }
 
+  if (typeof window === 'undefined') return null
+
   if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">

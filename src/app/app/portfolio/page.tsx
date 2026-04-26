@@ -140,6 +140,8 @@ export default function PortfolioPage() {
 
   const loading = authLoading || cardsLoading
 
+  if (typeof window === 'undefined') return null
+
   function handleDeleteRequest(cardId: string) {
     setDeleteTarget(cardId)
   }

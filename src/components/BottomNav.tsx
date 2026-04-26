@@ -74,7 +74,11 @@ export function BottomNav() {
             <button
               key={tab.href}
               className={cls}
-              onClick={() => window.dispatchEvent(new CustomEvent('ccro:home-reset'))}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('ccro:home-reset'))
+                }
+              }}
             >
               {iconEl}{labelEl}
             </button>
