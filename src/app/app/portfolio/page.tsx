@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 // KAN-125: Card portfolio management screen
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useRequireAuth } from '@/hooks/useAuth'
 import { useCards, useUpdateCardBalance, useRemoveCard } from '@/hooks/useCards'
@@ -52,6 +52,11 @@ function CardRow({ card, userId, editMode, onDelete }: CardRowProps) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(String(card.current_points_balance))
   const { mutate: updateBalance } = useUpdateCardBalance()
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
 
   function commitBalance() {
     const n = parseInt(value, 10)
@@ -76,10 +81,15 @@ function CardRow({ card, userId, editMode, onDelete }: CardRowProps) {
 
       {/* Balance + staleness */}
       <div className="text-right flex-shrink-0">
-        {editing ? (
+        {/* Slide-in input */}
+        <div
+          className="overflow-hidden transition-all duration-200"
+          style={{ maxHeight: editing ? '48px' : '0' }}
+        >
           <input
-            autoFocus
+            ref={inputRef}
             type="number"
+            inputMode="numeric"
             min="0"
             value={value}
             onChange={e => setValue(e.target.value)}
@@ -87,10 +97,12 @@ function CardRow({ card, userId, editMode, onDelete }: CardRowProps) {
             onKeyDown={e => { if (e.key === 'Enter') commitBalance() }}
             className="w-28 text-right text-sm font-semibold bg-amber-50 border border-amber-400 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
-        ) : (
+        </div>
+        {/* Balance button (hidden while editing) */}
+        {!editing && (
           <button
             onClick={() => { setValue(String(card.current_points_balance)); setEditing(true) }}
-            className="text-sm font-semibold text-stone-900 hover:text-amber-600 transition-colors"
+            className="text-sm font-semibold text-stone-900 hover:text-amber-600 transition-all duration-100 active:scale-95"
             title="Tap to edit balance"
           >
             {card.current_points_balance.toLocaleString('en-IN')} pts

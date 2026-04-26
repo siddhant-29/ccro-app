@@ -46,36 +46,36 @@ const TABS = [
   },
 ]
 
-interface BottomNavProps {
-  onHomeTap?: () => void
-}
-
-export function BottomNav({ onHomeTap }: BottomNavProps = {}) {
+export function BottomNav() {
   const pathname = usePathname()
 
   return (
     <nav
-      className="bg-white border-t border-stone-200 flex h-14"
+      className="flex-shrink-0 bg-white border-t border-stone-100 flex h-14"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {TABS.map(tab => {
         const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
-        const cls = 'flex-1 flex flex-col items-center justify-center gap-0.5'
+        const cls = 'flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors duration-150'
         const iconEl = (
-          <div className={`p-1.5 rounded-lg transition-colors ${active ? 'bg-amber-100 text-amber-600' : 'text-stone-400'}`}>
+          <div className={`p-1.5 rounded-lg transition-colors duration-150 ${active ? 'bg-amber-50 text-amber-600' : 'text-stone-400'}`}>
             {tab.icon}
           </div>
         )
         const labelEl = (
-          <span className={`text-[10px] font-medium leading-none ${active ? 'text-amber-600' : 'text-stone-400'}`}>
+          <span className={`text-[10px] font-medium leading-none transition-colors duration-150 ${active ? 'text-amber-600' : 'text-stone-400'}`}>
             {tab.label}
           </span>
         )
 
-        // Home tab tapped while already on /app/chat: trigger reset, don't navigate
-        if (tab.href === '/app/chat' && active && onHomeTap) {
+        // Home tab while on /app/chat: fire reset event instead of navigating
+        if (tab.href === '/app/chat' && active) {
           return (
-            <button key={tab.href} onClick={onHomeTap} className={cls}>
+            <button
+              key={tab.href}
+              className={cls}
+              onClick={() => window.dispatchEvent(new CustomEvent('ccro:home-reset'))}
+            >
               {iconEl}{labelEl}
             </button>
           )

@@ -1,6 +1,6 @@
 'use client'
 
-// KAN-56–65: EP7 AI Chat Interface
+// KAN-56–65: EP7 AI Chat Interface | KAN-123/127: layout + animations
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRequireAuth } from '@/hooks/useAuth'
@@ -30,6 +30,13 @@ export default function ChatPage() {
     }
   }, [historyLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Listen for home-reset event dispatched by BottomNav when on this tab
+  useEffect(() => {
+    function onHomeReset() { setShowHome(true) }
+    window.addEventListener('ccro:home-reset', onHomeReset)
+    return () => window.removeEventListener('ccro:home-reset', onHomeReset)
+  }, [])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -57,17 +64,17 @@ export default function ChatPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+      <div className="h-[100dvh] bg-stone-50 flex items-center justify-center">
         <div className="text-stone-400 text-sm">Loading…</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
+    <div className="h-[100dvh] bg-stone-50 flex flex-col">
 
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center sticky top-0 z-10">
+      <header className="flex-shrink-0 bg-white border-b border-stone-200 px-4 py-3 flex items-center z-10">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 bg-amber-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-bold leading-none">CC</span>
@@ -78,7 +85,7 @@ export default function ChatPage() {
 
       {/* Card pills */}
       {cards && cards.length > 0 && (
-        <div className="bg-white border-b border-stone-100 px-4 py-2 flex gap-2 overflow-x-auto">
+        <div className="flex-shrink-0 bg-white border-b border-stone-100 px-4 py-2 flex gap-2 overflow-x-auto">
           {cards.map(card => (
             <span
               key={card.id}
@@ -119,7 +126,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input area */}
-      <div className="bg-white border-t border-stone-200 px-4 py-3 sticky bottom-14 z-10">
+      <div className="flex-shrink-0 bg-white border-t border-stone-200 px-4 py-3">
         <div className="max-w-2xl mx-auto flex gap-2 items-end">
           <textarea
             ref={textareaRef}
@@ -139,7 +146,7 @@ export default function ChatPage() {
           {isLoading ? (
             <button
               onClick={stopStreaming}
-              className="w-10 h-10 flex-shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-colors"
+              className="w-10 h-10 flex-shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-all duration-100 active:scale-95"
               aria-label="Stop streaming"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -150,7 +157,7 @@ export default function ChatPage() {
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="w-10 h-10 flex-shrink-0 bg-amber-600 hover:bg-amber-700 disabled:bg-stone-200 text-white disabled:text-stone-400 rounded-xl flex items-center justify-center transition-colors"
+              className="w-10 h-10 flex-shrink-0 bg-amber-600 hover:bg-amber-700 disabled:bg-stone-200 text-white disabled:text-stone-400 rounded-xl flex items-center justify-center transition-all duration-100 active:scale-95"
               aria-label="Send"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
@@ -160,7 +167,8 @@ export default function ChatPage() {
           )}
         </div>
       </div>
-      <BottomNav onHomeTap={() => setShowHome(true)} />
+
+      <BottomNav />
     </div>
   )
 }
@@ -190,7 +198,7 @@ function WelcomeState({
           <button
             key={i}
             onClick={() => onSelect(q)}
-            className="w-full text-left text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-4 py-3 hover:border-amber-400 hover:text-stone-900 transition-colors leading-snug"
+            className="w-full text-left text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-4 py-3 hover:border-amber-400 hover:text-stone-900 transition-all duration-100 active:scale-95 leading-snug"
           >
             {q}
           </button>
@@ -204,7 +212,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-fadeSlideUp`}>
       <div className={`max-w-[85%] ${
         isUser
           ? 'bg-amber-600 text-white rounded-2xl rounded-br-md px-4 py-2.5'
