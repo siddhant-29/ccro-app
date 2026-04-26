@@ -10,7 +10,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { CC_ADVISOR_SYSTEM_PROMPT } from './system-prompt'
 import type { ClassifiedIntent } from '../types'
-import type { RewardsContext, EarnRate, TransferPartner } from '@/types'
+import type { RewardsContext, CardDetails, EarnRate, TransferPartner } from '@/types'
 
 const TG_LIMIT = 4096
 
@@ -54,6 +54,39 @@ export function formatRewardsContext(context: RewardsContext): string {
       )
       .join('\n')
     parts.push(`USER PORTFOLIO:\n${balances}`)
+  }
+
+  if (context.card_details && context.card_details.length > 0) {
+    const details = context.card_details
+      .map((d: CardDetails) => {
+        const lounge = (n: number | null, label: string) => {
+          if (n == null) return null
+          return `${label}: ${n >= 9999 ? 'Unlimited' : `${n}/yr`}`
+        }
+        const lines: string[] = [
+          `  ${d.card_id.toUpperCase()} — ${d.card_name}`,
+        ]
+        const attrs: string[] = []
+        if (d.card_type)           attrs.push(`card type: ${d.card_type}`)
+        if (d.card_network)        attrs.push(`network: ${d.card_network}`)
+        if (d.availability_status) attrs.push(`status: ${d.availability_status}`)
+        if (attrs.length) lines.push(`    ${attrs.join(' | ')}`)
+
+        const perks: (string | null)[] = [
+          d.forex_markup_pct != null ? `Forex markup: ${d.forex_markup_pct}%` : null,
+          lounge(d.lounge_dom_per_year,  'Domestic lounge'),
+          lounge(d.lounge_intl_per_year, 'Intl lounge'),
+          `UPI: ${d.upi_supported ? 'Yes' : 'No'}`,
+        ]
+        const perkLine = perks.filter(Boolean).join(' | ')
+        if (perkLine) lines.push(`    ${perkLine}`)
+
+        if (d.welcome_benefit_desc) lines.push(`    Welcome benefit: ${d.welcome_benefit_desc}`)
+        if (d.renewal_benefit_desc) lines.push(`    Renewal benefit: ${d.renewal_benefit_desc}`)
+        return lines.join('\n')
+      })
+      .join('\n')
+    parts.push(`CARD DETAILS:\n${details}`)
   }
 
   if (context.earn_rates && context.earn_rates.length > 0) {

@@ -248,6 +248,20 @@ export interface LimitCheckResult {
 // Context builder types (what gets injected into Claude)
 // ─────────────────────────────────────────────────────────
 
+export interface CardDetails {
+  card_id: string
+  card_name: string
+  card_type: string | null
+  card_network: string | null
+  forex_markup_pct: number | null
+  lounge_dom_per_year: number | null
+  lounge_intl_per_year: number | null
+  upi_supported: boolean
+  availability_status: string | null
+  welcome_benefit_desc: string | null
+  renewal_benefit_desc: string | null
+}
+
 export interface RewardsContext {
   user_portfolio: Array<{
     card_id: string
@@ -255,6 +269,7 @@ export interface RewardsContext {
     current_points_balance: number
     balance_last_updated: string
   }>
+  card_details?: CardDetails[]
   earn_rates?: EarnRate[]
   transfer_partners?: TransferPartner[]
   all_cards_earn_rates?: EarnRate[]        // multi-card orchestration

@@ -6,7 +6,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase'
-import type { ClassifiedIntent, EarnRate, TransferPartner, RewardsContext } from '@/types'
+import type { ClassifiedIntent, CardDetails, EarnRate, TransferPartner, RewardsContext } from '@/types'
 
 export const DATA_NOTICE =
   'Data sourced from CCRO rewards database. Verify current rates at your bank\'s website before acting.'
@@ -51,14 +51,17 @@ export async function buildContext(
   }
 
   try {
-    const [earnRates, partners] = await Promise.all([
+    const [cardDetails, earnRates, partners] = await Promise.all([
+      fetchCardDetails(allCardIds),
       fetchEarnRates(allCardIds, userCountry),
       fetchTransferPartners(allCardIds, userCountry, partnerLimit),
     ])
 
+    console.log('[context-builder] card details fetched:', cardDetails.length)
     console.log('[context-builder] earn rates fetched:', earnRates.length)
     console.log('[context-builder] partners fetched:', partners.length)
 
+    context.card_details = cardDetails
     context.earn_rates = earnRates
     context.transfer_partners = partners
 
@@ -97,6 +100,24 @@ export async function buildContext(
 }
 
 // ── private helpers ────────────────────────────────────────────────────────
+
+async function fetchCardDetails(cardIds: string[]): Promise<CardDetails[]> {
+  const { data, error } = await supabaseAdmin!
+    .from('card_rewards')
+    .select(
+      'card_id, card_name, card_type, card_network, ' +
+      'forex_markup_pct, lounge_dom_per_year, lounge_intl_per_year, ' +
+      'upi_supported, availability_status, ' +
+      'welcome_benefit_desc, renewal_benefit_desc'
+    )
+    .in('card_id', cardIds)
+
+  if (error) {
+    console.error('[context-builder] card_rewards error:', error)
+    throw error
+  }
+  return (data ?? []) as unknown as CardDetails[]
+}
 
 async function fetchEarnRates(cardIds: string[], countryCode: string): Promise<EarnRate[]> {
   const { data, error } = await supabaseAdmin!
