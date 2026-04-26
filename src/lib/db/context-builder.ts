@@ -104,14 +104,14 @@ export async function buildContext(
 async function fetchCardDetails(cardIds: string[]): Promise<CardDetails[]> {
   const { data, error } = await supabaseAdmin!
     .from('card_rewards')
-    .select(
-      'card_id, card_name, issuer, tier, card_type, card_network, ' +
-      'annual_fee_inr, annual_fee_amount, joining_fee_inr, joining_fee_amount, ' +
-      'forex_markup_pct, lounge_dom_per_year, lounge_intl_per_year, ' +
-      'upi_supported, availability_status, ' +
-      'welcome_benefit_desc, renewal_benefit_desc, ' +
-      'fee_waiver_threshold, country_code, currency, verified'
-    )
+    .select(`
+      card_id, card_name, issuer, tier, annual_fee_inr,
+      annual_fee_amount, joining_fee_amount, fee_waiver_threshold,
+      card_type, card_network, availability_status, country_code,
+      forex_markup_pct, lounge_dom_per_year, lounge_intl_per_year,
+      upi_supported, welcome_benefit_desc, renewal_benefit_desc,
+      verified, source_url, last_refreshed_at
+    `)
     .in('card_id', cardIds)
 
   if (error) {

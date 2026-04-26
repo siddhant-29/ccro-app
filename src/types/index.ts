@@ -253,23 +253,23 @@ export interface CardDetails {
   card_name: string
   issuer: string | null
   tier: string | null
-  card_type: string | null
-  card_network: string | null
   annual_fee_inr: number | null
   annual_fee_amount: number | null
-  joining_fee_inr: number | null
   joining_fee_amount: number | null
+  fee_waiver_threshold: number | null
+  card_type: string | null
+  card_network: string | null
+  availability_status: string | null
+  country_code: string | null
   forex_markup_pct: number | null
   lounge_dom_per_year: number | null
   lounge_intl_per_year: number | null
   upi_supported: boolean
-  availability_status: string | null
   welcome_benefit_desc: string | null
   renewal_benefit_desc: string | null
-  fee_waiver_threshold: number | null
-  country_code: string | null
-  currency: string | null
   verified: boolean | null
+  source_url: string | null
+  last_refreshed_at: string | null
 }
 
 export interface RewardsContext {
