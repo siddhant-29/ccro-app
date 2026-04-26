@@ -65,10 +65,15 @@ export function BottomNav() {
   const [newsUnread, setNewsUnread] = useState(0)
 
   useEffect(() => {
-    fetch('/api/news/unread-count')
-      .then(r => r.json())
-      .then(({ count }: { count: number }) => setNewsUnread(count ?? 0))
-      .catch(() => {})
+    ;(async () => {
+      try {
+        const res = await fetch('/api/news/unread-count')
+        const data = await res.json() as { count?: number }
+        setNewsUnread(data.count ?? 0)
+      } catch {
+        setNewsUnread(0)
+      }
+    })()
   }, [pathname])
 
   return (
