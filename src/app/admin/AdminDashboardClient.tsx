@@ -54,12 +54,20 @@ export function AdminDashboardClient({ cards, countries, selectedCountry, stats 
           <h1 className="text-2xl font-semibold text-stone-900">Admin dashboard</h1>
           <p className="text-stone-500 text-sm mt-0.5">Manage card rewards data.</p>
         </div>
-        <Link
-          href="/admin/cards/new"
-          className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          + Add Card
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/import"
+            className="border border-stone-200 hover:border-stone-300 bg-white text-stone-700 hover:bg-stone-50 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            Import cards
+          </Link>
+          <Link
+            href="/admin/cards/new"
+            className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            + Add Card
+          </Link>
+        </div>
       </div>
 
       {/* Stats strip */}
