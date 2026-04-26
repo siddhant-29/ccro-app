@@ -41,12 +41,12 @@ export async function middleware(req: NextRequest) {
 
     // New user — redirect to onboarding if not completed
     if (pathname === '/app/chat' || pathname === '/app') {
-      const { data: userCards } = await supabase
+      const { count: cardCount } = await supabase
         .from('user_cards')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', session.user.id)
 
-      const isNewUser = !userCards
+      const isNewUser = (cardCount ?? 0) === 0
       if (isNewUser && !req.cookies.get('onboarding_skipped')) {
         return NextResponse.redirect(new URL('/onboarding', req.url))
       }

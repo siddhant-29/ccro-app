@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 // KAN-56–65: EP7 AI Chat — streaming pipeline
 
 import { cookies } from 'next/headers'
