@@ -105,12 +105,13 @@ async function fetchCardDetails(cardIds: string[]): Promise<CardDetails[]> {
   const { data, error } = await supabaseAdmin!
     .from('card_rewards')
     .select(`
-      card_id, card_name, issuer, tier, annual_fee_inr,
-      annual_fee_amount, joining_fee_amount, fee_waiver_threshold,
-      card_type, card_network, availability_status, country_code,
-      forex_markup_pct, lounge_dom_per_year, lounge_intl_per_year,
-      upi_supported, welcome_benefit_desc, renewal_benefit_desc,
-      verified, source_url, last_refreshed_at
+      card_id, card_name, issuer, tier, card_type, card_network,
+      annual_fee_inr, annual_fee_amount, joining_fee_amount,
+      fee_waiver_threshold, forex_markup_pct,
+      lounge_dom_per_year, lounge_intl_per_year,
+      upi_supported, availability_status, country_code,
+      welcome_benefit_desc, renewal_benefit_desc,
+      source_url, last_refreshed_at
     `)
     .in('card_id', cardIds)
 
@@ -121,12 +122,11 @@ async function fetchCardDetails(cardIds: string[]): Promise<CardDetails[]> {
   return (data ?? []) as unknown as CardDetails[]
 }
 
-async function fetchEarnRates(cardIds: string[], countryCode: string): Promise<EarnRate[]> {
+async function fetchEarnRates(cardIds: string[], _countryCode: string): Promise<EarnRate[]> {
   const { data, error } = await supabaseAdmin!
     .from('earn_rates')
     .select('*')
     .in('card_id', cardIds)
-    .eq('country_code', countryCode)
     .eq('availability_status', 'active')
     .is('effective_to', null)
     .order('card_id')
@@ -141,14 +141,13 @@ async function fetchEarnRates(cardIds: string[], countryCode: string): Promise<E
 
 async function fetchTransferPartners(
   cardIds: string[],
-  countryCode: string,
+  _countryCode: string,
   limit?: number
 ): Promise<TransferPartner[]> {
   let query = supabaseAdmin!
     .from('transfer_partners')
     .select('*')
     .in('card_id', cardIds)
-    .eq('country_code', countryCode)
     .eq('availability_status', 'active')
     .is('effective_to', null)
     .order('card_id')

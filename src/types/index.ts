@@ -267,7 +267,6 @@ export interface CardDetails {
   upi_supported: boolean
   welcome_benefit_desc: string | null
   renewal_benefit_desc: string | null
-  verified: boolean | null
   source_url: string | null
   last_refreshed_at: string | null
 }
