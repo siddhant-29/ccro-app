@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useRequireAuth } from '@/hooks/useAuth'
@@ -52,17 +53,26 @@ function getDailyGreeting(pool: string[]): string {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+interface HistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export default function ChatPage() {
   const { user, loading: authLoading } = useRequireAuth()
   const { data: cards } = useCards(user?.id)
-  const { messages, isLoading, sendMessage, stopStreaming, loadConversationById } = useChat()
+  const { messages, isLoading, sendMessage, stopStreaming } = useChat()
+  const router = useRouter()
 
-  const [input,          setInput]          = useState('')
-  const [showHome,       setShowHome]       = useState(true)
-  const [homeQuestions,  setHomeQuestions]  = useState<string[]>([])
-  const [isFirstSession, setIsFirstSession] = useState(false)
-  const [greeting,       setGreeting]       = useState('')
-  const [subtitle,       setSubtitle]       = useState('What can I help you with today?')
+  const [input,            setInput]            = useState('')
+  const [showHome,         setShowHome]         = useState(true)
+  const [homeQuestions,    setHomeQuestions]    = useState<string[]>([])
+  const [isFirstSession,   setIsFirstSession]   = useState(false)
+  const [greeting,         setGreeting]         = useState('')
+  const [subtitle,         setSubtitle]         = useState('What can I help you with today?')
+  const [conversationId,   setConversationId]   = useState<string | null>(null)
+  const [historyMessages,  setHistoryMessages]  = useState<HistoryMessage[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const bottomRef   = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -95,17 +105,41 @@ export default function ChatPage() {
     setSubtitle(getDailyGreeting(SUBTITLES))
   }, [firstName])
 
-  // Load a specific conversation when ?conversationId= is in the URL
+  // Read conversationId from URL (history mode)
   useEffect(() => {
-    const sp     = new URLSearchParams(window.location.search)
-    const convId = sp.get('conversationId')
-    if (convId) {
-      loadConversationById(convId).then(loaded => {
-        if (loaded) setShowHome(false)
+    const sp = new URLSearchParams(window.location.search)
+    setConversationId(sp.get('conversationId'))
+  }, [])
+
+  // Load all messages when viewing a past conversation
+  useEffect(() => {
+    if (!conversationId || !user) return
+    const supabase = createBrowserClient()
+    setIsLoadingHistory(true)
+    supabase
+      .from('conversations')
+      .select('role, content, created_at')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setHistoryMessages(
+            (data as Array<{ role: string; content: unknown }>).map(msg => ({
+              role: msg.role as 'user' | 'assistant',
+              content: typeof msg.content === 'string'
+                ? msg.content
+                : (msg.content as { text?: string } | null)?.text ?? '',
+            }))
+          )
+        }
+        setIsLoadingHistory(false)
       })
-      return
-    }
-    // Pre-filled query from news detail "Ask CREDPO" CTA
+  }, [conversationId, user])
+
+  // Pre-filled query from news detail "Ask CREDPO" CTA
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
     const q = sp.get('q')
     if (q) {
       setShowHome(false)
@@ -175,6 +209,56 @@ export default function ChatPage() {
     return (
       <div className="h-[100dvh] bg-stone-50 flex items-center justify-center">
         <div className="text-stone-400 text-sm">Loading…</div>
+      </div>
+    )
+  }
+
+  // History mode — read-only view of a past conversation
+  if (conversationId) {
+    return (
+      <div className="h-[100dvh] bg-stone-50 flex flex-col">
+        <header className="flex-shrink-0 bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => router.push('/app/history')}
+            className="text-stone-500 hover:text-stone-700 text-sm flex items-center gap-1 transition-colors"
+          >
+            ← Back
+          </button>
+          <span className="text-sm text-stone-400">Past conversation</span>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full space-y-4 pb-16">
+          {isLoadingHistory ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="text-stone-400 text-sm animate-pulse">Loading…</div>
+            </div>
+          ) : historyMessages.length === 0 ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="text-stone-400 text-sm">No messages found</div>
+            </div>
+          ) : (
+            historyMessages.map((msg, i) => (
+              <MessageBubble
+                key={i}
+                message={{ id: String(i), role: msg.role, content: msg.content, timestamp: '' }}
+              />
+            ))
+          )}
+        </div>
+
+        <div className="flex-shrink-0 bg-amber-50 border-t border-amber-100 px-4 py-3 text-center">
+          <p className="text-xs text-stone-500">
+            Viewing past conversation ·{' '}
+            <button
+              onClick={() => router.push('/app/chat')}
+              className="text-amber-600 font-medium"
+            >
+              Start new chat
+            </button>
+          </p>
+        </div>
+
+        <BottomNav />
       </div>
     )
   }

@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { createRouteHandlerClient, supabaseAdmin } from '@/lib/supabase'
 
 type ConvRow = {
+  conversation_id?: string
   role: string
   content: { text?: string } | string | null
   created_at: string
@@ -27,44 +28,36 @@ export async function GET(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ conversations: [], messages: [] })
 
-  // Return messages for a specific conversation (user turn + following assistant turn)
+  // Return ALL messages for a specific conversation (by UUID)
   if (conversationId) {
-    const { data: userTurn } = await supabaseAdmin
+    const { data: turns } = await supabaseAdmin
       .from('conversations')
       .select('role, content, created_at')
       .eq('user_id', user.id)
-      .eq('created_at', conversationId)
-      .maybeSingle()
-
-    if (!userTurn) return Response.json({ messages: [] })
-
-    const { data: assistantTurn } = await supabaseAdmin
-      .from('conversations')
-      .select('role, content, created_at')
-      .eq('user_id', user.id)
-      .eq('role', 'assistant')
-      .gt('created_at', conversationId)
+      .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
 
-    const messages = [
-      { role: (userTurn as ConvRow).role, content: extractText((userTurn as ConvRow).content), created_at: (userTurn as ConvRow).created_at },
-      ...(assistantTurn ? [{ role: (assistantTurn as ConvRow).role, content: extractText((assistantTurn as ConvRow).content), created_at: (assistantTurn as ConvRow).created_at }] : []),
-    ]
+    if (!turns || turns.length === 0) return Response.json({ messages: [] })
+
+    const messages = (turns as ConvRow[]).map(t => ({
+      role: t.role,
+      content: extractText(t.content),
+      created_at: t.created_at,
+    }))
     return Response.json({ messages })
   }
 
+  // List all conversations (grouped by conversation_id)
   const { data } = await supabaseAdmin
     .from('conversations')
-    .select('role, content, created_at')
+    .select('conversation_id, role, content, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(200)
 
   const turns = (data ?? []) as ConvRow[]
 
-  // Build conversation entries: each user turn + the following assistant turn
+  // Build conversation entries: each user turn opens a conversation
   const userTurns = turns.filter(t => t.role === 'user')
   const conversations = userTurns.map(ut => {
     const assistantTurn = turns.find(
@@ -76,7 +69,7 @@ export async function GET(req: Request) {
       : '…'
     const ageMs = Date.now() - new Date(ut.created_at).getTime()
     return {
-      id: ut.created_at,
+      id: ut.conversation_id ?? ut.created_at,
       title,
       preview,
       created_at: ut.created_at,
@@ -98,33 +91,12 @@ export async function DELETE(req: Request) {
   const { id } = await req.json() as { id: string }
   if (!id) return Response.json({ error: 'id required' }, { status: 400 })
 
-  // Delete the user turn with this exact created_at
+  // Delete all messages in this conversation by conversation_id UUID
   await supabaseAdmin
     .from('conversations')
     .delete()
     .eq('user_id', user.id)
-    .eq('created_at', id)
-    .eq('role', 'user')
-
-  // Delete the nearest assistant turn that follows it
-  const { data: nextAssistant } = await supabaseAdmin
-    .from('conversations')
-    .select('created_at')
-    .eq('user_id', user.id)
-    .eq('role', 'assistant')
-    .gt('created_at', id)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (nextAssistant) {
-    await supabaseAdmin
-      .from('conversations')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('created_at', nextAssistant.created_at)
-      .eq('role', 'assistant')
-  }
+    .eq('conversation_id', id)
 
   return Response.json({ ok: true })
 }
