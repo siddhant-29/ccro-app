@@ -84,7 +84,7 @@ export default function SignInPage() {
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 mb-6">
             <div className="w-9 h-9 bg-amber-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-sm">CC</span>
+              <span className="text-white font-bold text-sm">CP</span>
             </div>
             <span className="text-stone-900 font-semibold text-lg tracking-tight">CREDPO</span>
           </div>

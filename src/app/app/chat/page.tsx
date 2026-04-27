@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useRequireAuth } from '@/hooks/useAuth'
 import { useCards } from '@/hooks/useCards'
 import { useChat, type ChatMessage } from '@/hooks/useChat'
@@ -184,7 +186,7 @@ export default function ChatPage() {
       <header className="flex-shrink-0 bg-white border-b border-stone-200 px-4 py-3 flex items-center z-10">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 bg-amber-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-bold leading-none">CC</span>
+            <span className="text-white text-xs font-bold leading-none">CP</span>
           </div>
           <span className="font-semibold text-stone-900 text-sm">CREDPO</span>
         </div>
@@ -372,7 +374,7 @@ function WelcomeState({
     <div className="flex flex-col items-center justify-center py-10 text-center">
       <div className="w-14 h-14 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-center mb-5">
         <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
-          <span className="text-white text-sm font-bold leading-none">CC</span>
+          <span className="text-white text-sm font-bold leading-none">CP</span>
         </div>
       </div>
       <h1 suppressHydrationWarning className="text-xl font-semibold text-stone-900 mb-1">
@@ -430,59 +432,38 @@ function MarkdownContent({ content }: { content: string }) {
   if (!content) return null
 
   return (
-    <div className="space-y-1">
-      {content.split('\n').map((line, i) => (
-        <MarkdownLine key={i} line={line} />
-      ))}
-    </div>
-  )
-}
-
-function MarkdownLine({ line }: { line: string }) {
-  if (line === '') return <div className="h-1.5" />
-  if (line.startsWith('### ')) return <h3 className="font-semibold text-sm mt-1.5">{parseInline(line.slice(4))}</h3>
-  if (line.startsWith('## '))  return <h2 className="font-semibold text-sm mt-2">{parseInline(line.slice(3))}</h2>
-  if (line.startsWith('# '))   return <h1 className="font-semibold text-sm mt-2">{parseInline(line.slice(2))}</h1>
-
-  if (line.startsWith('- ') || line.startsWith('* ')) {
-    return (
-      <div className="flex gap-1.5 items-start">
-        <span className="mt-2 w-1.5 h-1.5 bg-stone-400 rounded-full flex-shrink-0" />
-        <span className="text-sm leading-relaxed">{parseInline(line.slice(2))}</span>
-      </div>
-    )
-  }
-
-  const numberedMatch = line.match(/^(\d+)\.\s(.*)$/)
-  if (numberedMatch) {
-    return (
-      <div className="text-sm leading-relaxed">
-        <span className="text-stone-500 mr-1">{numberedMatch[1]}.</span>
-        {parseInline(numberedMatch[2])}
-      </div>
-    )
-  }
-
-  return <p className="text-sm leading-relaxed">{parseInline(line)}</p>
-}
-
-function parseInline(text: string): ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/)
-  if (parts.length === 1) return text
-  return (
-    <>
-      {parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
-        }
-        if (part.startsWith('*') && part.endsWith('*')) {
-          return <em key={i}>{part.slice(1, -1)}</em>
-        }
-        if (part.startsWith('`') && part.endsWith('`')) {
-          return <code key={i} className="font-mono text-xs bg-stone-100 px-1 py-0.5 rounded">{part.slice(1, -1)}</code>
-        }
-        return part
-      })}
-    </>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p:      ({ children }) => <p className="text-sm leading-relaxed">{children}</p>,
+        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+        em:     ({ children }) => <em>{children}</em>,
+        code:   ({ children }) => <code className="font-mono text-xs bg-stone-100 px-1 py-0.5 rounded">{children}</code>,
+        pre:    ({ children }) => <pre className="bg-stone-100 rounded-lg p-3 overflow-x-auto text-xs font-mono my-1">{children}</pre>,
+        h1:     ({ children }) => <h1 className="font-semibold text-sm mt-2">{children}</h1>,
+        h2:     ({ children }) => <h2 className="font-semibold text-sm mt-2">{children}</h2>,
+        h3:     ({ children }) => <h3 className="font-semibold text-sm mt-1.5">{children}</h3>,
+        ul:     ({ children }) => <ul className="space-y-0.5 my-0.5">{children}</ul>,
+        ol:     ({ children }) => <ol className="space-y-0.5 my-0.5">{children}</ol>,
+        li:     ({ children }) => (
+          <div className="flex gap-1.5 items-start">
+            <span className="mt-2 w-1.5 h-1.5 bg-stone-400 rounded-full flex-shrink-0" />
+            <span className="text-sm leading-relaxed">{children}</span>
+          </div>
+        ),
+        hr: () => <hr className="border-stone-200 my-2" />,
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table className="text-sm border-collapse w-full">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className="bg-stone-50">{children}</thead>,
+        tr:    ({ children }) => <tr className="border-b border-stone-200">{children}</tr>,
+        th:    ({ children }) => <th className="text-left px-2 py-1.5 font-semibold text-stone-700 text-xs">{children}</th>,
+        td:    ({ children }) => <td className="px-2 py-1.5 text-stone-700 text-xs">{children}</td>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   )
 }

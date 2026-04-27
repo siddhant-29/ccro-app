@@ -15,6 +15,16 @@ interface ConversationEntry {
   recent: boolean
 }
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/#{1,6}\s/g, '')
+    .replace(/\|.*\|/g, '')
+    .replace(/---/g, '')
+    .trim()
+}
+
 function relativeTime(dateStr: string): string {
   const s = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
   if (s < 60) return 'Just now'
@@ -89,7 +99,7 @@ function ConversationRow({
         />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-stone-900 truncate">{entry.title}</p>
-          <p className="text-xs text-stone-400 truncate mt-0.5">{entry.preview}</p>
+          <p className="text-xs text-stone-400 truncate mt-0.5">{stripMarkdown(entry.preview)}</p>
         </div>
         <span suppressHydrationWarning className="text-xs text-stone-400 flex-shrink-0 mt-0.5">
           {relativeTime(entry.created_at)}
