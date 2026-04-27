@@ -62,7 +62,7 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname()
-  const [newsUnread, setNewsUnread] = useState(0)
+  const [newsUnread, setNewsUnread] = useState<number | null>(null)
 
   useEffect(() => {
     ;(async () => {
@@ -84,7 +84,7 @@ export function BottomNav() {
       {TABS.map(tab => {
         const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
         const cls = 'flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors duration-150 relative'
-        const showBadge = (tab as { showBadge?: boolean }).showBadge && newsUnread > 0
+        const showBadge = (tab as { showBadge?: boolean }).showBadge && newsUnread !== null && newsUnread > 0
 
         const iconEl = (
           <div className={`p-1.5 rounded-lg transition-colors duration-150 relative ${active ? 'bg-amber-50 text-amber-600' : 'text-stone-400'}`}>

@@ -108,7 +108,7 @@ function CardRow({ card, userId, editMode, onDelete }: CardRowProps) {
             {card.current_points_balance.toLocaleString('en-IN')} pts
           </button>
         )}
-        <span className={`block text-xs mt-0.5 px-1.5 py-0.5 rounded-full font-medium ${stale.cls}`}>
+        <span suppressHydrationWarning className={`block text-xs mt-0.5 px-1.5 py-0.5 rounded-full font-medium ${stale.cls}`}>
           {stale.label}
         </span>
       </div>
@@ -139,8 +139,6 @@ export default function PortfolioPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   const loading = authLoading || cardsLoading
-
-  if (typeof window === 'undefined') return null
 
   function handleDeleteRequest(cardId: string) {
     setDeleteTarget(cardId)

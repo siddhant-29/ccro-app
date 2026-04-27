@@ -57,7 +57,7 @@ export function NewsPostCard({
               {STATUS_CONFIG[post.status].label}
             </span>
           )}
-          <span className="text-xs text-stone-400 whitespace-nowrap">{relativeTime(post.created_at)}</span>
+          <span suppressHydrationWarning className="text-xs text-stone-400 whitespace-nowrap">{relativeTime(post.created_at)}</span>
         </div>
       </div>
 

@@ -169,8 +169,6 @@ export default function ChatPage() {
     }
   }
 
-  if (typeof window === 'undefined') return null
-
   if (authLoading) {
     return (
       <div className="h-[100dvh] bg-stone-50 flex items-center justify-center">
@@ -377,10 +375,10 @@ function WelcomeState({
           <span className="text-white text-sm font-bold leading-none">CC</span>
         </div>
       </div>
-      <h1 className="text-xl font-semibold text-stone-900 mb-1">
+      <h1 suppressHydrationWarning className="text-xl font-semibold text-stone-900 mb-1">
         {greeting || `Hey${firstName ? ` ${firstName}` : ''}! 👋`}
       </h1>
-      <p className="text-stone-500 text-sm mb-7">{subtitle}</p>
+      <p suppressHydrationWarning className="text-stone-500 text-sm mb-7">{subtitle}</p>
       <QuestionChips homeQuestions={homeQuestions} onSend={onSend} maxWidth="max-w-lg" />
     </div>
   )

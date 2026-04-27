@@ -91,7 +91,7 @@ function ConversationRow({
           <p className="text-sm font-medium text-stone-900 truncate">{entry.title}</p>
           <p className="text-xs text-stone-400 truncate mt-0.5">{entry.preview}</p>
         </div>
-        <span className="text-xs text-stone-400 flex-shrink-0 mt-0.5">
+        <span suppressHydrationWarning className="text-xs text-stone-400 flex-shrink-0 mt-0.5">
           {relativeTime(entry.created_at)}
         </span>
       </button>
@@ -140,8 +140,6 @@ export default function HistoryPage() {
         c.preview.toLowerCase().includes(search.toLowerCase())
       )
     : conversations
-
-  if (typeof window === 'undefined') return null
 
   if (authLoading) {
     return (
