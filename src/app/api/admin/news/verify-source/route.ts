@@ -16,7 +16,7 @@ async function fetchPage(url: string): Promise<{ title: string; html: string }> 
   try {
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CCROBot/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CREDPOBot/1.0)' },
     })
     const html = await res.text()
     const match = html.match(/<title[^>]*>([^<]*)<\/title>/i)

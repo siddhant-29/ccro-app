@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────
-// CCRO — Auth Callback Route
+// CREDPO — Auth Callback Route
 // Handles BOTH Supabase auth flows:
 //   PKCE:       ?code=...           (exchangeCodeForSession)
 //   token_hash: ?token_hash=...&type=magiclink  (verifyOtp)

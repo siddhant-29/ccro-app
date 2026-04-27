@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import type { ClassifiedIntent, CardDetails, EarnRate, TransferPartner, RewardsContext } from '@/types'
 
 export const DATA_NOTICE =
-  'Data sourced from CCRO rewards database. Verify current rates at your bank\'s website before acting.'
+  'Data sourced from CREDPO rewards database. Verify current rates at your bank\'s website before acting.'
 
 // ── main export ────────────────────────────────────────────────────────────
 

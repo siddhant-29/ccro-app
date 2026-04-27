@@ -1,7 +1,7 @@
 'use client'
 
 // ─────────────────────────────────────────────────────────
-// CCRO — useAuth Hook
+// CREDPO — useAuth Hook
 // Reusable hook for auth state across all client components
 // ─────────────────────────────────────────────────────────
 

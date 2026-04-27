@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// CCRO — Shared TypeScript Types
+// CREDPO — Shared TypeScript Types
 // KAN-29: All data shapes defined, no `any` types allowed
 // ═══════════════════════════════════════════════════════════
 

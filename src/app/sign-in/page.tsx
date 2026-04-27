@@ -1,7 +1,7 @@
 'use client'
 
 // ─────────────────────────────────────────────────────────
-// CCRO — Sign In Page
+// CREDPO — Sign In Page
 // KAN-38: Email OTP auth flow
 // ─────────────────────────────────────────────────────────
 
@@ -86,10 +86,10 @@ export default function SignInPage() {
             <div className="w-9 h-9 bg-amber-600 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-sm">CC</span>
             </div>
-            <span className="text-stone-900 font-semibold text-lg tracking-tight">CCRO</span>
+            <span className="text-stone-900 font-semibold text-lg tracking-tight">CREDPO</span>
           </div>
           <h1 className="text-2xl font-semibold text-stone-900 mb-2">
-            Sign in to CCRO
+            Sign in to CREDPO
           </h1>
           <p className="text-stone-500 text-sm">
             Your AI-powered credit card rewards advisor

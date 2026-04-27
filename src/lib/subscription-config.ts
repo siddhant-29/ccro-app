@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// CCRO — Subscription Configuration
+// CREDPO — Subscription Configuration
 // KAN-86: FREE_FOR_ALL flag controls all tier enforcement
 //
 // Phase 1: FREE_FOR_ALL=true  → everyone gets Max access

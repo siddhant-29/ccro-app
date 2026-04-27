@@ -1,7 +1,7 @@
 'use client'
 
 // ─────────────────────────────────────────────────────────
-// CCRO — useCards Hook
+// CREDPO — useCards Hook
 // Fetches user's registered cards with React Query caching
 // KAN-40: Correct cache TTL (30 seconds for user cards)
 // ─────────────────────────────────────────────────────────

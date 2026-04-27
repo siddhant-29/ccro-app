@@ -1,7 +1,5 @@
 'use client'
 
-// KAN-56–65: EP7 AI Chat Interface | KAN-123/127: layout + animations
-
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRequireAuth } from '@/hooks/useAuth'
 import { useCards } from '@/hooks/useCards'
@@ -10,16 +8,60 @@ import { getDynamicHomeQuestions } from '@/lib/suggested-queries'
 import { BottomNav } from '@/components/BottomNav'
 import { createBrowserClient } from '@/lib/supabase'
 
+// ── Greeting helpers (outside component — pure, no closures) ─────────────────
+
+const SUBTITLES = [
+  'What can I help you with today?',
+  'How can I help you maximise your rewards?',
+  "Your cards, optimised. What's the question?",
+  'Ask me anything about your cards.',
+]
+
+function greetingPool(name: string | null) {
+  return {
+    morning: [
+      `Good morning${name ? `, ${name}` : ''}! ☀️`,
+      `Morning${name ? `, ${name}` : ''}! Ready to make the most of your rewards?`,
+      `Good morning${name ? `, ${name}` : ''}! What are we optimising today?`,
+    ],
+    afternoon: [
+      `Good afternoon${name ? `, ${name}` : ''}! 👋`,
+      `Hey${name ? ` ${name}` : ''}! How can I help with your cards today?`,
+      `Good afternoon${name ? `, ${name}` : ''}! Planning a trip or checking points?`,
+    ],
+    evening: [
+      `Good evening${name ? `, ${name}` : ''}! 🌆`,
+      `Evening${name ? `, ${name}` : ''}! What's on your rewards radar today?`,
+      `Good evening${name ? `, ${name}` : ''}! Let's put those points to work.`,
+    ],
+    night: [
+      `Hey${name ? ` ${name}` : ''}! 🌙`,
+      `Up late${name ? `, ${name}` : ''}? Let's make it worth your while.`,
+      `Good evening${name ? `, ${name}` : ''}! Night owl rewards planning?`,
+    ],
+  }
+}
+
+function getDailyGreeting(pool: string[]): string {
+  const start = new Date(new Date().getFullYear(), 0, 0).getTime()
+  const dayOfYear = Math.floor((Date.now() - start) / 86400000)
+  return pool[dayOfYear % pool.length] ?? pool[0] ?? ''
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export default function ChatPage() {
   const { user, loading: authLoading } = useRequireAuth()
   const { data: cards } = useCards(user?.id)
   const { messages, isLoading, sendMessage, stopStreaming, loadConversationById } = useChat()
 
-  const [input, setInput] = useState('')
-  const [showHome, setShowHome] = useState(true)
-  const [homeQuestions, setHomeQuestions] = useState<string[]>([])
+  const [input,          setInput]          = useState('')
+  const [showHome,       setShowHome]       = useState(true)
+  const [homeQuestions,  setHomeQuestions]  = useState<string[]>([])
   const [isFirstSession, setIsFirstSession] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const [greeting,       setGreeting]       = useState('')
+  const [subtitle,       setSubtitle]       = useState('What can I help you with today?')
+  const bottomRef   = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Stable card list for question generation
@@ -31,16 +73,29 @@ export default function ChatPage() {
     [cards]
   )
 
-  // Time-aware greeting
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  // Name with fallback chain
   const firstName =
-    ((user?.user_metadata?.full_name ?? user?.user_metadata?.name) as string | undefined)
-      ?.split(' ')[0] ?? 'there'
+    (user?.user_metadata?.display_name as string | undefined)?.split(' ')[0] ||
+    (user?.user_metadata?.full_name as string | undefined)?.split(' ')[0] ||
+    user?.email?.split('@')[0] ||
+    null
+
+  // Greeting — runs client-side only to prevent SSR/client hydration mismatch
+  useEffect(() => {
+    const hour  = new Date().getHours()
+    const pools = greetingPool(firstName)
+    const pool  =
+      hour >= 5  && hour < 12 ? pools.morning
+      : hour >= 12 && hour < 17 ? pools.afternoon
+      : hour >= 17 && hour < 21 ? pools.evening
+      : pools.night
+    setGreeting(getDailyGreeting(pool))
+    setSubtitle(getDailyGreeting(SUBTITLES))
+  }, [firstName])
 
   // Load a specific conversation when ?conversationId= is in the URL
   useEffect(() => {
-    const sp = new URLSearchParams(window.location.search)
+    const sp     = new URLSearchParams(window.location.search)
     const convId = sp.get('conversationId')
     if (convId) {
       loadConversationById(convId).then(loaded => {
@@ -48,7 +103,7 @@ export default function ChatPage() {
       })
       return
     }
-    // Pre-filled query from news detail "Ask CCRO" CTA
+    // Pre-filled query from news detail "Ask CREDPO" CTA
     const q = sp.get('q')
     if (q) {
       setShowHome(false)
@@ -58,7 +113,8 @@ export default function ChatPage() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialise questions when cards first load
+  // Initialise questions client-side — getDynamicHomeQuestions uses Math.random()
+  // which would cause hydration errors #418/#423 if called during server render
   useEffect(() => {
     if (cards !== undefined) {
       setHomeQuestions(getDynamicHomeQuestions(cardList, null))
@@ -132,7 +188,7 @@ export default function ChatPage() {
           <div className="w-7 h-7 bg-amber-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-bold leading-none">CC</span>
           </div>
-          <span className="font-semibold text-stone-900 text-sm">Rewards Advisor</span>
+          <span className="font-semibold text-stone-900 text-sm">CREDPO</span>
         </div>
       </header>
 
@@ -150,7 +206,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages / Home */}
       <div className="flex-1 overflow-y-auto px-4 py-6 max-w-2xl mx-auto w-full">
         {showHome ? (
           isFirstSession ? (
@@ -163,6 +219,7 @@ export default function ChatPage() {
           ) : (
             <WelcomeState
               greeting={greeting}
+              subtitle={subtitle}
               firstName={firstName}
               homeQuestions={homeQuestions}
               onSend={handleSend}
@@ -226,7 +283,35 @@ export default function ChatPage() {
   )
 }
 
-// ── Sub-components ───────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function QuestionChips({
+  homeQuestions,
+  onSend,
+  maxWidth = 'max-w-sm',
+}: {
+  homeQuestions: string[]
+  onSend: (q: string) => void
+  maxWidth?: string
+}) {
+  return (
+    <div className={`flex flex-col gap-3 w-full ${maxWidth}`}>
+      {homeQuestions.length === 0
+        ? Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-14 bg-stone-100 rounded-xl animate-pulse" />
+          ))
+        : homeQuestions.map((q, i) => (
+            <button
+              key={i}
+              onClick={() => onSend(q)}
+              className="w-full text-left px-4 py-3 bg-white border border-stone-200 rounded-xl text-sm text-stone-700 hover:border-amber-300 hover:bg-amber-50 active:scale-95 transition-all duration-150 leading-snug"
+            >
+              {q}
+            </button>
+          ))}
+    </div>
+  )
+}
 
 function FirstSessionWelcome({
   firstName,
@@ -234,7 +319,7 @@ function FirstSessionWelcome({
   homeQuestions,
   onSend,
 }: {
-  firstName: string
+  firstName: string | null
   cardList: { id: string; name: string }[]
   homeQuestions: string[]
   onSend: (q: string) => void
@@ -244,7 +329,7 @@ function FirstSessionWelcome({
       <div className="text-center">
         <div className="text-3xl mb-3">👋</div>
         <h1 className="text-xl font-semibold text-stone-900 mb-1">
-          Welcome to CCRO{firstName && firstName !== 'there' ? `, ${firstName}` : ''}!
+          Welcome to CREDPO{firstName ? `, ${firstName}` : ''}!
         </h1>
         <p className="text-sm text-stone-400 leading-relaxed">
           Your AI-powered credit card rewards advisor
@@ -267,29 +352,21 @@ function FirstSessionWelcome({
 
       <p className="text-sm text-stone-500 text-center">Here&apos;s what I can help you with today:</p>
 
-      <div className="flex flex-col gap-3 w-full max-w-sm">
-        {homeQuestions.map((q, i) => (
-          <button
-            key={i}
-            onClick={() => onSend(q)}
-            className="w-full text-left px-4 py-3 bg-white border border-stone-200 rounded-xl text-sm text-stone-700 hover:border-amber-300 hover:bg-amber-50 active:scale-95 transition-all duration-150 leading-snug"
-          >
-            {q}
-          </button>
-        ))}
-      </div>
+      <QuestionChips homeQuestions={homeQuestions} onSend={onSend} />
     </div>
   )
 }
 
 function WelcomeState({
   greeting,
+  subtitle,
   firstName,
   homeQuestions,
   onSend,
 }: {
   greeting: string
-  firstName: string
+  subtitle: string
+  firstName: string | null
   homeQuestions: string[]
   onSend: (q: string) => void
 }) {
@@ -300,21 +377,11 @@ function WelcomeState({
           <span className="text-white text-sm font-bold leading-none">CC</span>
         </div>
       </div>
-      <h2 className="text-lg font-semibold text-stone-900 mb-1">
-        {greeting}, {firstName} 👋
-      </h2>
-      <p className="text-stone-500 text-sm mb-7">What can I help you with today?</p>
-      <div className="grid grid-cols-1 gap-3 w-full max-w-lg mx-auto">
-        {homeQuestions.map((q, i) => (
-          <button
-            key={i}
-            onClick={() => onSend(q)}
-            className="w-full text-left px-4 py-3 bg-white border border-stone-200 rounded-xl text-sm text-stone-700 hover:border-amber-300 hover:bg-amber-50 active:scale-95 transition-all duration-150 leading-snug"
-          >
-            {q}
-          </button>
-        ))}
-      </div>
+      <h1 className="text-xl font-semibold text-stone-900 mb-1">
+        {greeting || `Hey${firstName ? ` ${firstName}` : ''}! 👋`}
+      </h1>
+      <p className="text-stone-500 text-sm mb-7">{subtitle}</p>
+      <QuestionChips homeQuestions={homeQuestions} onSend={onSend} maxWidth="max-w-lg" />
     </div>
   )
 }

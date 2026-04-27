@@ -151,7 +151,7 @@ export default function NewsDetailPage() {
               }}
               className="w-full bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium py-2.5 px-4 rounded-xl transition-colors"
             >
-              Ask CCRO about it
+              Ask CREDPO about it
             </button>
           </div>
 

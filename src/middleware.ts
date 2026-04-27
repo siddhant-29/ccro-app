@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// CCRO — Route Protection Middleware
+// CREDPO — Route Protection Middleware
 // KAN-39: Protects /app/* and /admin/* routes
 // ═══════════════════════════════════════════════════════════
 

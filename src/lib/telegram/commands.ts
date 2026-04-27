@@ -19,7 +19,7 @@ export async function handleStart(chatId: number): Promise<void> {
 
 export async function handleHelp(chatId: number): Promise<void> {
   const text = [
-    '*CC Rewards Advisor — supported queries:*',
+    '*CREDPO — supported queries:*',
     '',
     '🔁 *Redemption path* — "Best way to use 45K Magnus points for Bangkok?"',
     '⚖️ *Card comparison* — "Magnus vs Infinia for international travel"',

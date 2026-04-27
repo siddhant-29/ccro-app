@@ -3,7 +3,7 @@ import './globals.css'
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: 'CCRO — Credit Card Rewards Optimiser',
+  title: 'CREDPO',
   description: 'AI-powered credit card rewards advisor',
 }
 
