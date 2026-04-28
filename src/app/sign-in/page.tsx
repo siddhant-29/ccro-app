@@ -21,20 +21,12 @@ export default function SignInPage() {
     setLoading(true)
     setError('')
 
-    const getRedirectUrl = () => {
-      const origin = window.location.origin
-      if (origin.includes('credpo.com') && !origin.includes('www')) {
-        return 'https://www.credpo.com/auth/callback?next=/app/chat'
-      }
-      return `${origin}/auth/callback?next=/app/chat`
-    }
-
     const supabase = createBrowserClient()
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: getRedirectUrl(),
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
 

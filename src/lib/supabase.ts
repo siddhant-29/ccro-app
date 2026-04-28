@@ -1,15 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createClientComponentClient, createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr'
 
-// Browser client — uses anon key (safe to expose).
-// Uses @supabase/ssr so signInWithOtp sends token_hash links (not PKCE codes),
-// which work cross-device and cross-browser without a code_verifier cookie.
+// Browser client — uses anon key (safe to expose)
 export function createBrowserClient() {
-  return createSSRBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  return createClientComponentClient()
 }
 
 // Route handler client — reads session from cookies
