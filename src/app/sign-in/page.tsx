@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { useState } from 'react'
-import { createBrowserClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 export default function SignInPage() {
   const [email, setEmail] = useState('')
@@ -21,7 +21,13 @@ export default function SignInPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createBrowserClient()
+    // Raw createClient with explicit implicit flow — bypasses the PKCE override
+    // that @supabase/ssr and @supabase/auth-helpers-nextjs both hardcode.
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { flowType: 'implicit' } },
+    )
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
