@@ -23,12 +23,10 @@ export default function SignInPage() {
 
     const getRedirectUrl = () => {
       const origin = window.location.origin
-      // Always normalise to www.credpo.com to prevent PKCE
-      // localStorage mismatch when credpo.com redirects to www
       if (origin.includes('credpo.com') && !origin.includes('www')) {
-        return 'https://www.credpo.com/auth/callback'
+        return 'https://www.credpo.com/auth/callback?next=/app/chat'
       }
-      return `${origin}/auth/callback`
+      return `${origin}/auth/callback?next=/app/chat`
     }
 
     const supabase = createBrowserClient()
