@@ -21,12 +21,22 @@ export default function SignInPage() {
     setLoading(true)
     setError('')
 
+    const getRedirectUrl = () => {
+      const origin = window.location.origin
+      // Always normalise to www.credpo.com to prevent PKCE
+      // localStorage mismatch when credpo.com redirects to www
+      if (origin.includes('credpo.com') && !origin.includes('www')) {
+        return 'https://www.credpo.com/auth/callback'
+      }
+      return `${origin}/auth/callback`
+    }
+
     const supabase = createBrowserClient()
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: getRedirectUrl(),
       },
     })
 
