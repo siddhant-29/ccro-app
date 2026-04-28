@@ -54,6 +54,8 @@ export function formatRewardsContext(context: RewardsContext): string {
       )
       .join('\n')
     parts.push(`USER PORTFOLIO:\n${balances}`)
+  } else {
+    parts.push(`USER PORTFOLIO: No cards registered. User has not added any cards yet.`)
   }
 
   if (context.card_details && context.card_details.length > 0) {
