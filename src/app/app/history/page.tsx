@@ -1,5 +1,8 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // KAN-124: Conversation history list screen
 
 import { useEffect, useRef, useState } from 'react'

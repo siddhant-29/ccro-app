@@ -64,15 +64,16 @@ export default function ChatPage() {
   const { messages, isLoading, sendMessage, stopStreaming } = useChat()
   const router = useRouter()
 
-  const [input,            setInput]            = useState('')
-  const [showHome,         setShowHome]         = useState(true)
-  const [homeQuestions,    setHomeQuestions]    = useState<string[]>([])
-  const [isFirstSession,   setIsFirstSession]   = useState(false)
-  const [greeting,         setGreeting]         = useState('')
-  const [subtitle,         setSubtitle]         = useState('What can I help you with today?')
-  const [conversationId,   setConversationId]   = useState<string | null>(null)
-  const [historyMessages,  setHistoryMessages]  = useState<HistoryMessage[]>([])
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [input,              setInput]              = useState('')
+  const [showHome,           setShowHome]           = useState(true)
+  const [homeQuestions,      setHomeQuestions]      = useState<string[]>([])
+  const [isFirstSession,     setIsFirstSession]     = useState(false)
+  const [greeting,           setGreeting]           = useState('')
+  const [subtitle,           setSubtitle]           = useState('What can I help you with today?')
+  const [conversationId,     setConversationId]     = useState<string | null>(null)
+  const [historyMessages,    setHistoryMessages]    = useState<HistoryMessage[]>([])
+  const [isLoadingHistory,   setIsLoadingHistory]   = useState(false)
+  const [restoredMessages,   setRestoredMessages]   = useState<HistoryMessage[]>([])
   const bottomRef   = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -104,6 +105,34 @@ export default function ChatPage() {
     setGreeting(getDailyGreeting(pool))
     setSubtitle(getDailyGreeting(SUBTITLES))
   }, [firstName])
+
+  // Restore previous conversation from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('credpo_active_chat')
+      if (!stored) return
+      const parsed = JSON.parse(stored)
+      if (Date.now() - parsed.lastUpdated > 86400000) {
+        sessionStorage.removeItem('credpo_active_chat')
+        return
+      }
+      const msgs: HistoryMessage[] = parsed.messages ?? []
+      if (msgs.length > 0) setRestoredMessages(msgs)
+    } catch {}
+  }, [])
+
+  // Persist completed messages to sessionStorage whenever they change
+  useEffect(() => {
+    const completed = messages
+      .filter(m => !m.isStreaming)
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    if (completed.length > 0) {
+      sessionStorage.setItem('credpo_active_chat', JSON.stringify({
+        messages: completed,
+        lastUpdated: Date.now(),
+      }))
+    }
+  }, [messages])
 
   // Read conversationId from URL (history mode)
   useEffect(() => {
@@ -171,10 +200,12 @@ export default function ChatPage() {
       })
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for home-reset — regenerate questions on every Home tab tap
+  // Listen for home-reset — regenerate questions and clear active chat on Home tab tap
   useEffect(() => {
     function onHomeReset() {
       setShowHome(true)
+      setRestoredMessages([])
+      sessionStorage.removeItem('credpo_active_chat')
       setHomeQuestions(getDynamicHomeQuestions(cardList, null))
       window.scrollTo({ top: 0 })
     }
@@ -185,6 +216,12 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  function handleNewChat() {
+    setRestoredMessages([])
+    setShowHome(true)
+    sessionStorage.removeItem('credpo_active_chat')
+  }
 
   function handleSend(directMsg?: string) {
     const msg = (directMsg ?? input).trim()
@@ -274,6 +311,14 @@ export default function ChatPage() {
           </div>
           <span className="font-semibold text-stone-900 text-sm">CREDPO</span>
         </div>
+        {(messages.length > 0 || restoredMessages.length > 0) && (
+          <button
+            onClick={handleNewChat}
+            className="ml-auto text-xs text-stone-400 hover:text-amber-600 border border-stone-200 hover:border-amber-300 rounded-lg px-3 py-1.5 bg-white transition-colors"
+          >
+            + New chat
+          </button>
+        )}
       </header>
 
       {/* Card pills */}
@@ -292,29 +337,38 @@ export default function ChatPage() {
 
       {/* Messages / Home */}
       <div className="flex-1 overflow-y-auto px-4 py-6 max-w-2xl mx-auto w-full">
-        {showHome ? (
-          isFirstSession ? (
-            <FirstSessionWelcome
-              firstName={firstName}
-              cardList={cardList}
-              homeQuestions={homeQuestions}
-              onSend={handleSend}
-            />
-          ) : (
-            <WelcomeState
-              greeting={greeting}
-              subtitle={subtitle}
-              firstName={firstName}
-              homeQuestions={homeQuestions}
-              onSend={handleSend}
-            />
-          )
-        ) : (
+        {messages.length > 0 ? (
+          // Active conversation from useChat hook
           <div className="space-y-4">
             {messages.map(msg => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
           </div>
+        ) : restoredMessages.length > 0 ? (
+          // Previous conversation restored from sessionStorage (tab navigation return)
+          <div className="space-y-4">
+            {restoredMessages.map((msg, i) => (
+              <MessageBubble
+                key={`restored-${i}`}
+                message={{ id: `restored-${i}`, role: msg.role, content: msg.content } as ChatMessage}
+              />
+            ))}
+          </div>
+        ) : isFirstSession ? (
+          <FirstSessionWelcome
+            firstName={firstName}
+            cardList={cardList}
+            homeQuestions={homeQuestions}
+            onSend={handleSend}
+          />
+        ) : (
+          <WelcomeState
+            greeting={greeting}
+            subtitle={subtitle}
+            firstName={firstName}
+            homeQuestions={homeQuestions}
+            onSend={handleSend}
+          />
         )}
         <div ref={bottomRef} />
       </div>

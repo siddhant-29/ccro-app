@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 const TABS = [
@@ -62,6 +62,7 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname()
+  const router = useRouter()
   const [newsUnread, setNewsUnread] = useState<number | null>(null)
 
   useEffect(() => {
@@ -111,6 +112,23 @@ export function BottomNav() {
                 if (typeof window !== 'undefined') {
                   window.dispatchEvent(new CustomEvent('ccro:home-reset'))
                 }
+              }}
+            >
+              {iconEl}{labelEl}
+            </button>
+          )
+        }
+
+        // History tab — router.refresh() busts the route cache so useEffect
+        // re-runs and always shows the latest conversations
+        if (tab.href === '/app/history') {
+          return (
+            <button
+              key={tab.href}
+              className={cls}
+              onClick={() => {
+                router.push('/app/history')
+                router.refresh()
               }}
             >
               {iconEl}{labelEl}
