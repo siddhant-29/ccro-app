@@ -1,24 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createClientComponentClient, createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 
-// Browser client — raw createClient (auth-js defaults to implicit flow).
-// @supabase/ssr and @supabase/auth-helpers-nextjs both hardcode flowType:'pkce'
-// after spreading user options, so they cannot be overridden. Raw createClient
-// respects auth.flowType:'implicit', so magic links carry token_hash instead
-// of a PKCE code — usable cross-device without a localStorage code_verifier.
+// Browser client — uses anon key (safe to expose)
 export function createBrowserClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        flowType: 'implicit',
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    },
-  )
+  return createClientComponentClient()
 }
 
 // Route handler client — reads session from cookies
