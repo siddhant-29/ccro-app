@@ -1,9 +1,15 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { createClientComponentClient, createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr'
 
-// Browser client — uses anon key (safe to expose)
+// Browser client — uses @supabase/ssr so it reads the chunked cookies
+// (sb-xxx-auth-token.0/.1/...) that createServerClient writes in the
+// auth callback. auth-helpers-nextjs reads a single cookie and finds nothing.
 export function createBrowserClient() {
-  return createClientComponentClient()
+  return createSSRBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
 }
 
 // Route handler client — reads session from cookies
