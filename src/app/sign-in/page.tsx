@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { useState } from 'react'
-import { createBrowserClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 export default function SignInPage() {
   const [email, setEmail] = useState('')
@@ -21,12 +21,26 @@ export default function SignInPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createBrowserClient()
-    const { error } = await supabase.auth.signInWithOtp({
+    // Raw supabase-js client with implicit flow — @supabase/ssr hardcodes
+    // flowType:'pkce' after spreading options so it cannot be overridden.
+    // This one-off client generates token_hash links (no code_verifier needed),
+    // making magic links work cross-device and in incognito.
+    const supabaseOtp = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: {
+          flowType: 'implicit',
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    )
+    const { error } = await supabaseOtp.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: 'https://www.credpo.com/auth/callback',
       },
     })
 
