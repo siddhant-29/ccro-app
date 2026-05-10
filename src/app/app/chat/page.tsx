@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useRequireAuth } from '@/hooks/useAuth'
@@ -58,7 +58,7 @@ interface HistoryMessage {
   content: string
 }
 
-export default function ChatPage() {
+function ChatPageInner() {
   const { user, loading: authLoading } = useRequireAuth()
   const { data: cards } = useCards(user?.id)
   const { messages, isLoading, sendMessage, stopStreaming } = useChat()
@@ -70,7 +70,8 @@ export default function ChatPage() {
   const [isFirstSession,     setIsFirstSession]     = useState(false)
   const [greeting,           setGreeting]           = useState('')
   const [subtitle,           setSubtitle]           = useState('What can I help you with today?')
-  const [conversationId,     setConversationId]     = useState<string | null>(null)
+  const searchParams                                 = useSearchParams()
+  const conversationId                              = searchParams.get('conversationId')
   const [historyMessages,    setHistoryMessages]    = useState<HistoryMessage[]>([])
   const [isLoadingHistory,   setIsLoadingHistory]   = useState(false)
   const [restoredMessages,   setRestoredMessages]   = useState<HistoryMessage[]>([])
@@ -133,12 +134,6 @@ export default function ChatPage() {
       }))
     }
   }, [messages])
-
-  // Read conversationId from URL (history mode)
-  useEffect(() => {
-    const sp = new URLSearchParams(window.location.search)
-    setConversationId(sp.get('conversationId'))
-  }, [])
 
   // Load all messages when viewing a past conversation
   useEffect(() => {
@@ -287,8 +282,12 @@ export default function ChatPage() {
           <p className="text-xs text-stone-500">
             Viewing past conversation ·{' '}
             <button
-              onClick={() => router.push('/app/chat')}
-              className="text-amber-600 font-medium"
+              onClick={() => {
+                sessionStorage.removeItem('credpo_active_chat')
+                window.dispatchEvent(new CustomEvent('ccro:home-reset'))
+                router.replace('/app/chat')
+              }}
+              className="text-amber-600 font-medium hover:text-amber-700 transition-colors"
             >
               Start new chat
             </button>
@@ -603,5 +602,17 @@ function MarkdownContent({ content }: { content: string }) {
     >
       {content}
     </ReactMarkdown>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-[100dvh] bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-400 text-sm">Loading…</div>
+      </div>
+    }>
+      <ChatPageInner />
+    </Suspense>
   )
 }
