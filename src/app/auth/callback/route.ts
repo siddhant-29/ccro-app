@@ -1,5 +1,4 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -11,19 +10,24 @@ export async function GET(request: NextRequest) {
   const origin = requestUrl.origin
 
   if (code) {
-    const cookieStore = cookies()
+    // Create the redirect response FIRST so cookies can be attached to it
+    const response = NextResponse.redirect(new URL(next, origin))
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll()
+            return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
+            cookiesToSet.forEach(({ name, value, options }) => {
+              // Set on request so the current handler can read them,
+              // and on response so the browser receives them with the redirect
+              request.cookies.set(name, value)
+              response.cookies.set(name, value, options)
+            })
           },
         },
       }
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      return NextResponse.redirect(new URL(next, origin))
+      return response  // session cookies are on this response
     }
 
     console.error('[auth/callback] exchange failed:', error.message)
