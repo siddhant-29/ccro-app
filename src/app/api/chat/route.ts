@@ -247,9 +247,10 @@ async function persistTurn(
   intent: string
 ) {
   try {
+    const conversationId = crypto.randomUUID()
     await supabaseAdmin.from('conversations').insert([
-      { user_id: userId, role: 'user', content: { text: userMessage }, intent },
-      { user_id: userId, role: 'assistant', content: { text: assistantMessage }, intent },
+      { user_id: userId, role: 'user',      content: { text: userMessage },      intent, conversation_id: conversationId },
+      { user_id: userId, role: 'assistant', content: { text: assistantMessage }, intent, conversation_id: conversationId },
     ])
   } catch {
     // Non-fatal
