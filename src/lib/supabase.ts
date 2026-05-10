@@ -1,6 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr'
+import { createServerClient, createBrowserClient as createSSRBrowserClient } from '@supabase/ssr'
 
 // Browser client — uses @supabase/ssr so it reads the chunked cookies
 // (sb-xxx-auth-token.0/.1/...) that createServerClient writes in the
@@ -12,8 +11,32 @@ export function createBrowserClient() {
   )
 }
 
-// Route handler client — reads session from cookies
-export { createRouteHandlerClient }
+// Route handler client — wrapper with the same call signature as
+// auth-helpers-nextjs createRouteHandlerClient so all API routes work unchanged.
+// Uses @supabase/ssr to read the chunked cookie format written by the callback.
+export function createRouteHandlerClient({
+  cookies: getCookies,
+}: {
+  cookies: () => ReturnType<typeof import('next/headers').cookies>
+}) {
+  const cookieStore = getCookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+}
 
 // Admin client — server-side only, bypasses RLS.
 //
