@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // CREDPO — Route Protection Middleware
 // KAN-39: Protects /app/* and /admin/* routes
+// Uses @supabase/ssr to read chunked cookies set by auth callback.
 // ═══════════════════════════════════════════════════════════
 
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
 const PUBLIC_ROUTES = [
   '/sign-in',
@@ -13,9 +13,8 @@ const PUBLIC_ROUTES = [
   '/auth/callback',
 ]
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-  const { pathname } = req.nextUrl
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
 
   // Always allow public routes through immediately — no Supabase calls
   if (PUBLIC_ROUTES.some(r => pathname.startsWith(r))) {
@@ -31,29 +30,48 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // ── Admin routes — Supabase session + ADMIN_USER_ID check ────
-  if (pathname.startsWith('/admin')) {
-    const supabase = createMiddlewareClient({ req, res })
-    const { data: { session } } = await supabase.auth.getSession()
+  // Build supabase response — recreated in setAll so refreshed cookies propagate
+  let supabaseResponse = NextResponse.next({ request })
 
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  // getUser() validates JWT with Supabase server — more reliable than getSession()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // ── Admin routes — user + ADMIN_USER_ID check ────────────
+  if (pathname.startsWith('/admin')) {
     const isAdmin =
-      session != null &&
+      user != null &&
       process.env.ADMIN_USER_ID != null &&
-      session.user.id === process.env.ADMIN_USER_ID
+      user.id === process.env.ADMIN_USER_ID
 
     if (!isAdmin) {
-      return NextResponse.rewrite(new URL('/404', req.url))
+      return NextResponse.rewrite(new URL('/404', request.url))
     }
-    return res
+    return supabaseResponse
   }
 
-  // ── Protected app routes — Supabase session check ─────────────
+  // ── Protected app routes — session check ─────────────────
   if (pathname.startsWith('/app')) {
-    const supabase = createMiddlewareClient({ req, res })
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (!session) {
-      const signInUrl = new URL('/sign-in', req.url)
+    if (!user) {
+      const signInUrl = new URL('/sign-in', request.url)
       signInUrl.searchParams.set('returnTo', pathname)
       return NextResponse.redirect(signInUrl)
     }
@@ -63,31 +81,28 @@ export async function middleware(req: NextRequest) {
       const { count: cardCount } = await supabase
         .from('user_cards')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
 
       const isNewUser = (cardCount ?? 0) === 0
-      if (isNewUser && !req.cookies.get('onboarding_skipped')) {
-        return NextResponse.redirect(new URL('/onboarding', req.url))
+      if (isNewUser && !request.cookies.get('onboarding_skipped')) {
+        return NextResponse.redirect(new URL('/onboarding', request.url))
       }
     }
 
-    return res
+    return supabaseResponse
   }
 
-  // ── Onboarding — requires auth ─────────────────────────────────
+  // ── Onboarding — requires auth ────────────────────────────
   if (pathname.startsWith('/onboarding')) {
-    const supabase = createMiddlewareClient({ req, res })
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (!session) {
-      const signInUrl = new URL('/sign-in', req.url)
+    if (!user) {
+      const signInUrl = new URL('/sign-in', request.url)
       signInUrl.searchParams.set('returnTo', '/onboarding')
       return NextResponse.redirect(signInUrl)
     }
-    return res
+    return supabaseResponse
   }
 
-  return res
+  return supabaseResponse
 }
 
 export const config = {
